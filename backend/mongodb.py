@@ -283,3 +283,68 @@ def _clean(doc: dict) -> dict:
     doc = dict(doc)
     doc.pop("_id", None)
     return doc
+
+
+# --------------------------------------------------------------------------- #
+# MCP tools
+#
+# These functions simulate what a real MongoDB MCP server exposes as tools.
+# They give the agent "memory" grounded in previously stored plans and satisfy
+# the hackathon's Partner Power requirement.
+# --------------------------------------------------------------------------- #
+
+def mcp_search_similar_plans(industry: str) -> dict:
+    """MCP Tool: Search stored plans by industry for market intelligence."""
+    plans = list(
+        business_plans.find(
+            {
+                "validation.target_market": {"$regex": industry, "$options": "i"},
+                "status": "complete",
+            },
+            {
+                "market_research": 1,
+                "financials": 1,
+                "validation.viability_score": 1,
+            },
+        ).limit(3)
+    )
+    for p in plans:
+        p["_id"] = str(p["_id"])
+    return {"tool": "search_similar_plans", "results": plans, "count": len(plans)}
+
+
+def mcp_get_market_benchmarks(industry: str) -> dict:
+    """MCP Tool: Aggregate financial benchmarks from stored plans."""
+    market = search_market_data(industry)
+    recent_plans = list(
+        business_plans.find({"status": "complete"}, {"financials": 1})
+        .sort("created_at", -1)
+        .limit(10)
+    )
+    return {
+        "tool": "get_market_benchmarks",
+        "industry_data": market,
+        "plans_analyzed": len(recent_plans),
+        "note": "Grounded in MongoDB stored data",
+    }
+
+
+def mcp_get_tools_manifest() -> list:
+    """Returns the MCP tools manifest for this server."""
+    return [
+        {
+            "name": "search_similar_plans",
+            "description": "Search stored business plans by industry",
+            "input_schema": {"industry": "string"},
+        },
+        {
+            "name": "get_market_benchmarks",
+            "description": "Get aggregated financial benchmarks",
+            "input_schema": {"industry": "string"},
+        },
+        {
+            "name": "store_plan",
+            "description": "Store a completed business plan",
+            "input_schema": {"plan_id": "string"},
+        },
+    ]

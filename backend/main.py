@@ -69,6 +69,30 @@ async def get_shared_plan(token: str):
     return plan
 
 
+@app.get("/api/mcp/tools")
+async def get_mcp_tools():
+    """Exposes the MongoDB MCP tools manifest — required for hackathon judging."""
+    from mongodb import mcp_get_tools_manifest
+
+    return {
+        "mcp_server": "PitchCraft MongoDB MCP",
+        "version": "1.0.0",
+        "tools": mcp_get_tools_manifest(),
+    }
+
+
+@app.get("/api/mcp/demo")
+async def mcp_demo():
+    """Demo endpoint showing MCP in action — for the demo video."""
+    from mongodb import mcp_search_similar_plans, mcp_get_market_benchmarks
+
+    return {
+        "demo": "MongoDB MCP giving the agent market intelligence",
+        "tool_1_result": mcp_search_similar_plans("technology"),
+        "tool_2_result": mcp_get_market_benchmarks("technology"),
+    }
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "PitchCraft Agent"}

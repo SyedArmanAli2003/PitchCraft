@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from mongodb import (
     update_plan,
     search_market_data,
+    mcp_search_similar_plans,
 )
 
 load_dotenv()
@@ -80,8 +81,16 @@ Return ONLY valid JSON:
     industry = validation.get("target_market", "")
     market = search_market_data(industry)
 
-    prompt2 = f"""For this startup: "{idea}"
-Industry context: {json.dumps(market)}
+    # MCP Tool call — gives the agent memory from past plans.
+    mcp_context = mcp_search_similar_plans(
+        validation.get("target_market", "technology")
+    )
+
+    prompt2 = f"""For startup: "{idea}"
+Industry context from MongoDB: {json.dumps(market)}
+Similar validated plans from our database (via MCP): {json.dumps(mcp_context)}
+
+Use the MCP data to ground your research in real patterns.
 Return ONLY valid JSON:
 {{
   "market_size": "string",
