@@ -10,20 +10,47 @@ from bson import ObjectId
 
 load_dotenv()
 
-MONGODB_URI = os.getenv("MONGODB_URI")
+MONGODB_URI = os.getenv("MONGODB_URI", "")
 DB_NAME = os.getenv("MONGODB_DB", "pitchcraft")
 
-if not MONGODB_URI:
-    raise RuntimeError(
-        "MONGODB_URI is not set. Add it to your .env file "
-        "(see .env.example)."
-    )
+# --------------------------------------------------------------------------- #
+# Lazy client — created on first use so a bad/missing URI doesn't crash import
+# --------------------------------------------------------------------------- #
 
-client = MongoClient(MONGODB_URI)
-db = client[DB_NAME]
+_client: MongoClient | None = None
+_db = None
+_mongo_available = False
 
-business_plans = db["business_plans"]
-market_data = db["market_data"]
+
+def _get_db():
+    """Return the database handle, initialising the client on first call."""
+    global _client, _db, _mongo_available
+
+    if _db is not None:
+        return _db
+
+    uri = MONGODB_URI.strip()
+    # Placeholder values mean "not configured"
+    if not uri or "<" in uri or "your" in uri.lower():
+        return None
+
+    try:
+        _client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+        _client.admin.command("ping")  # quick connectivity check
+        _db = _client[DB_NAME]
+        _mongo_available = True
+        return _db
+    except Exception as exc:
+        print(f"❌ MongoDB connection failed: {exc}")
+        _client = None
+        return None
+
+
+def _collections():
+    db = _get_db()
+    if db is None:
+        return None, None
+    return db["business_plans"], db["market_data"]
 
 
 # --------------------------------------------------------------------------- #
@@ -166,6 +193,9 @@ SEED_MARKET_DATA = [
 
 def seed_market_data() -> None:
     """Insert the pre-seeded industry data if the collection is empty."""
+    _, market_data = _collections()
+    if market_data is None:
+        return
     if market_data.estimated_document_count() == 0:
         market_data.insert_many(SEED_MARKET_DATA)
 
@@ -173,39 +203,47 @@ def seed_market_data() -> None:
 def init_db() -> None:
     """Verify connectivity, seed reference data, and ensure indexes.
 
-    Called once on application startup. Any failure is reported but not raised,
-    so a misconfigured database surfaces a clear message instead of a crash.
+    Called once on application startup.  Failure is logged but not raised so
+    the app still starts when MongoDB is unavailable.
     """
-    try:
-        # 1. Confirm the cluster is reachable (MongoClient connects lazily).
-        client.admin.command("ping")
+    db = _get_db()
+    if db is None:
+        print("⚠️  MongoDB not configured — running without persistence.")
+        return
 
-        # 2. Seed reference data if the collection is empty.
+    try:
+        business_plans = db["business_plans"]
+        market_data = db["market_data"]
+
         seed_market_data()
 
-        # 3. Fast, unique lookups by share token. Plans start without a token,
-        #    so the unique constraint only applies once a string token exists.
         business_plans.create_index(
             [("share_token", ASCENDING)],
             unique=True,
             partialFilterExpression={"share_token": {"$type": "string"}},
             name="share_token_unique",
         )
-
-        # 4. Text index for searching industries.
         market_data.create_index([("industry", TEXT)], name="industry_text")
 
-        print("✅ MongoDB connected")
-    except Exception as error:  # noqa: BLE001 - report any startup failure
-        print(f"❌ MongoDB failed: {error}")
+        print("✅ MongoDB connected and ready")
+    except Exception as error:  # noqa: BLE001
+        print(f"❌ MongoDB init error: {error}")
 
 
 # --------------------------------------------------------------------------- #
-# Query functions
+# Query functions — all gracefully no-op when DB is unavailable
 # --------------------------------------------------------------------------- #
 
 def save_plan(idea: str) -> str:
-    """Create a new (empty) business plan document and return its id as a str."""
+    """Create a new (empty) business plan document and return its id as a str.
+
+    Returns a fake id ("no-db") if MongoDB is not available so the agent can
+    still run in a DB-less mode.
+    """
+    business_plans, _ = _collections()
+    if business_plans is None:
+        return "no-db"
+
     doc = {
         "idea": idea,
         "created_at": datetime.now(timezone.utc),
@@ -223,15 +261,28 @@ def save_plan(idea: str) -> str:
 
 
 def update_plan(plan_id: str, field: str, data) -> None:
-    """Update a single field of a plan."""
-    business_plans.update_one(
-        {"_id": ObjectId(plan_id)},
-        {"$set": {field: data}},
-    )
+    """Update a single field of a plan (no-op when DB unavailable)."""
+    if plan_id == "no-db":
+        return
+    business_plans, _ = _collections()
+    if business_plans is None:
+        return
+    try:
+        business_plans.update_one(
+            {"_id": ObjectId(plan_id)},
+            {"$set": {field: data}},
+        )
+    except Exception:
+        pass
 
 
 def get_plan(plan_id: str) -> dict | None:
     """Fetch a plan by its id. Returns None if not found or id is invalid."""
+    if plan_id == "no-db":
+        return None
+    business_plans, _ = _collections()
+    if business_plans is None:
+        return None
     if not ObjectId.is_valid(plan_id):
         return None
     return business_plans.find_one({"_id": ObjectId(plan_id)})
@@ -239,43 +290,55 @@ def get_plan(plan_id: str) -> dict | None:
 
 def get_plan_by_token(token: str) -> dict | None:
     """Fetch a plan by its public share token."""
+    business_plans, _ = _collections()
+    if business_plans is None:
+        return None
     return business_plans.find_one({"share_token": token})
 
 
 def search_market_data(industry_keyword: str) -> dict:
     """Find the best-matching seeded industry for a free-text keyword.
 
-    The keyword usually comes from the model's `target_market` field, which can
-    be a phrase like "small business owners in tech". We try a few strategies
-    and fall back to a generic Technology profile so downstream steps always
-    have context to work with.
+    Falls back to the static SEED_MARKET_DATA when MongoDB is unavailable so
+    the agent always has market context to work with.
     """
     keyword = (industry_keyword or "").strip()
+    lowered = keyword.lower()
 
-    if keyword:
-        # 1. Exact (case-insensitive) industry match.
-        exact = market_data.find_one(
-            {"industry": re.compile(f"^{re.escape(keyword)}$", re.IGNORECASE)}
-        )
-        if exact:
-            return _clean(exact)
+    _, market_data_col = _collections()
 
-        # 2. Industry name appears anywhere in the keyword phrase, or vice versa.
-        lowered = keyword.lower()
-        for row in market_data.find({}):
+    # ── Static fallback (used when DB is down or not configured) ── #
+    def _search_static(keyword: str) -> dict:
+        kw = keyword.lower()
+        for row in SEED_MARKET_DATA:
             industry = row["industry"].lower()
-            # Split "Food & Beverage" -> ["food", "beverage"] for token matching.
             tokens = re.split(r"[^a-z]+", industry)
-            if industry in lowered or any(
-                t and t in lowered for t in tokens
-            ):
-                return _clean(row)
+            if industry in kw or any(t and t in kw for t in tokens):
+                return dict(row)
+        # Default to Technology
+        return dict(SEED_MARKET_DATA[0])
 
-    # 3. Fallback: Technology profile (or first row if Technology is missing).
-    fallback = market_data.find_one({"industry": "Technology"}) or market_data.find_one(
-        {}
-    )
-    return _clean(fallback) if fallback else {}
+    if market_data_col is None:
+        return _search_static(lowered)
+
+    try:
+        if keyword:
+            exact = market_data_col.find_one(
+                {"industry": re.compile(f"^{re.escape(keyword)}$", re.IGNORECASE)}
+            )
+            if exact:
+                return _clean(exact)
+
+            for row in market_data_col.find({}):
+                industry = row["industry"].lower()
+                tokens = re.split(r"[^a-z]+", industry)
+                if industry in lowered or any(t and t in lowered for t in tokens):
+                    return _clean(row)
+
+        fallback = market_data_col.find_one({"industry": "Technology"}) or market_data_col.find_one({})
+        return _clean(fallback) if fallback else _search_static(lowered)
+    except Exception:
+        return _search_static(lowered)
 
 
 def _clean(doc: dict) -> dict:
@@ -287,40 +350,51 @@ def _clean(doc: dict) -> dict:
 
 # --------------------------------------------------------------------------- #
 # MCP tools
-#
-# These functions simulate what a real MongoDB MCP server exposes as tools.
-# They give the agent "memory" grounded in previously stored plans and satisfy
-# the hackathon's Partner Power requirement.
 # --------------------------------------------------------------------------- #
 
 def mcp_search_similar_plans(industry: str) -> dict:
     """MCP Tool: Search stored plans by industry for market intelligence."""
-    plans = list(
-        business_plans.find(
-            {
-                "validation.target_market": {"$regex": industry, "$options": "i"},
-                "status": "complete",
-            },
-            {
-                "market_research": 1,
-                "financials": 1,
-                "validation.viability_score": 1,
-            },
-        ).limit(3)
-    )
-    for p in plans:
-        p["_id"] = str(p["_id"])
-    return {"tool": "search_similar_plans", "results": plans, "count": len(plans)}
+    business_plans, _ = _collections()
+    if business_plans is None:
+        return {"tool": "search_similar_plans", "results": [], "count": 0}
+
+    try:
+        plans = list(
+            business_plans.find(
+                {
+                    "validation.target_market": {"$regex": industry, "$options": "i"},
+                    "status": "complete",
+                },
+                {
+                    "market_research": 1,
+                    "financials": 1,
+                    "validation.viability_score": 1,
+                },
+            ).limit(3)
+        )
+        for p in plans:
+            p["_id"] = str(p["_id"])
+        return {"tool": "search_similar_plans", "results": plans, "count": len(plans)}
+    except Exception:
+        return {"tool": "search_similar_plans", "results": [], "count": 0}
 
 
 def mcp_get_market_benchmarks(industry: str) -> dict:
     """MCP Tool: Aggregate financial benchmarks from stored plans."""
     market = search_market_data(industry)
-    recent_plans = list(
-        business_plans.find({"status": "complete"}, {"financials": 1})
-        .sort("created_at", -1)
-        .limit(10)
-    )
+    business_plans, _ = _collections()
+
+    recent_plans = []
+    if business_plans is not None:
+        try:
+            recent_plans = list(
+                business_plans.find({"status": "complete"}, {"financials": 1})
+                .sort("created_at", -1)
+                .limit(10)
+            )
+        except Exception:
+            pass
+
     return {
         "tool": "get_market_benchmarks",
         "industry_data": market,

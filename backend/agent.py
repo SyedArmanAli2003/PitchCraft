@@ -28,9 +28,23 @@ load_dotenv()
 # Model registry
 # --------------------------------------------------------------------------- #
 
-# Gemini client (tier 1)
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-_gemini_model = genai.GenerativeModel(os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite"))
+# Gemini client (tier 1) — configured lazily so a missing key doesn't crash import
+_gemini_model = None
+
+def _get_gemini_model():
+    global _gemini_model
+    if _gemini_model is not None:
+        return _gemini_model
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    if not api_key or api_key.startswith("your") or api_key.startswith("<"):
+        raise RuntimeError(
+            "GEMINI_API_KEY is not configured. "
+            "Set a real key in backend/.env to use the Gemini model."
+        )
+    genai.configure(api_key=api_key)
+    model_name = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    _gemini_model = genai.GenerativeModel(model_name)
+    return _gemini_model
 
 MODEL_CONFIGS: dict[str, dict] = {
     "gemini": {
@@ -92,7 +106,8 @@ def parse_json_response(text: str) -> dict:
 
 
 def _call_gemini(prompt: str) -> dict:
-    response = _gemini_model.generate_content(prompt)
+    model = _get_gemini_model()
+    response = model.generate_content(prompt)
     return parse_json_response(response.text)
 
 

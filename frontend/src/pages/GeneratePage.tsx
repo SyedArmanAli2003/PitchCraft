@@ -46,7 +46,7 @@ function useGenerateStream() {
       const response = await fetch(ENDPOINTS.generate, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idea }),
+        body: JSON.stringify({ idea, model: "gemini" }),
       });
 
       const id = response.headers.get("X-Plan-ID");

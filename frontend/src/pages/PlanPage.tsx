@@ -1,20 +1,25 @@
 import { memo, useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { ENDPOINTS } from "../config";
 
 /* ─────────────────────────── TYPES ─────────────────────────────────────── */
 interface Competitor { name: string; stage?: string; weakness?: string }
-interface Persona { name: string; job_title?: string; pain_point?: string; willingness_to_pay?: string }
-interface Risk { name: string; severity?: "high" | "medium" | "low"; mitigation?: string }
+// API returns { job, ... } — note: NOT job_title
+interface Persona { name: string; age?: string; job?: string; job_title?: string; pain_point?: string; willingness_to_pay?: string; how_they_find_us?: string }
+interface Risk { risk?: string; name?: string; severity?: string; mitigation?: string }
 interface SwotItem { strengths?: string[]; weaknesses?: string[]; opportunities?: string[]; threats?: string[] }
+interface MarketResearch { market_size?: string; growth_rate?: string; market_gap?: string; top_competitors?: Competitor[]; opportunity_score?: number }
 interface PlanData {
   idea?: string
   validation?: { viability_score?: number; one_line_summary?: string; target_market?: string; innovation_factor?: string; main_concerns?: string[] }
-  market?: { market_size?: string; growth_rate?: string; market_gap?: string; top_competitors?: Competitor[] }
+  // API key is market_research (not market)
+  market_research?: MarketResearch
+  // API returns personas as a top-level array
   personas?: Persona[]
-  business_plan?: { problem?: string; solution?: string; usp?: string; revenue_model?: string; go_to_market?: string }
-  financials?: { year1?: number; year2?: number; year3?: number; startup_cost?: string; monthly_burn?: string; break_even_month?: string; funding_needed?: string }
-  risks?: Risk[]
-  swot?: SwotItem
+  business_plan?: { problem?: string; solution?: string; unique_value_proposition?: string; usp?: string; revenue_model?: string; revenue_streams?: string[]; go_to_market?: string; key_milestones?: {month: number; milestone: string}[] }
+  financials?: { year1_revenue?: string; year2_revenue?: string; year3_revenue?: string; startup_cost?: string; monthly_burn?: string; break_even_month?: number; funding_needed?: string }
+  // API returns { risks: [...], swot: {...} } nested under this key
+  risks?: { risks?: Risk[]; swot?: SwotItem }
 }
 
 /* ─────────────────────────── SHARED CARD ───────────────────────────────── */
@@ -76,7 +81,7 @@ const ValidationSection = memo(({ data }: { data: PlanData["validation"] }) => {
 });
 
 /* ─────────────────────────── SECTION 2: MARKET ─────────────────────────── */
-const MarketSection = memo(({ data }: { data: PlanData["market"] }) => {
+const MarketSection = memo(({ data }: { data: PlanData["market_research"] }) => {
   if (!data) return null;
   return (
     <Card>
@@ -148,7 +153,8 @@ const PersonasSection = memo(({ personas }: { personas?: Persona[] }) => {
               {initials(p.name)}
             </div>
             <p className="text-sm font-semibold text-white">{p.name}</p>
-            {p.job_title && <p className="text-xs text-muted-foreground mt-0.5">{p.job_title}</p>}
+            {/* API returns 'job' field; fallback to job_title for compat */}
+            {(p.job ?? p.job_title) && <p className="text-xs text-muted-foreground mt-0.5">{p.job ?? p.job_title}</p>}
             {p.pain_point && <p className="text-xs text-muted-foreground italic mt-2 leading-relaxed">"{p.pain_point}"</p>}
             {p.willingness_to_pay && (
               <span className="mt-3 inline-block text-xs px-2 py-0.5 rounded-full bg-[hsla(142,71%,45%,0.12)] border border-[hsla(142,71%,45%,0.3)] text-[hsl(142,71%,55%)]">
@@ -168,7 +174,8 @@ const BusinessPlanSection = memo(({ data }: { data: PlanData["business_plan"] })
   const cols = [
     { key: "problem", label: "Problem", value: data.problem, borderColor: "rgba(248,113,113,0.5)" },
     { key: "solution", label: "Solution", value: data.solution, borderColor: "rgba(74,222,128,0.5)" },
-    { key: "usp", label: "Unique Value Proposition", value: data.usp, borderColor: "rgba(167,139,250,0.5)" },
+    // API returns unique_value_proposition; fallback to usp for compat
+    { key: "usp", label: "Unique Value Proposition", value: data.unique_value_proposition ?? data.usp, borderColor: "rgba(167,139,250,0.5)" },
   ];
 
   return (
@@ -209,43 +216,39 @@ const BusinessPlanSection = memo(({ data }: { data: PlanData["business_plan"] })
 /* ─────────────────────────── SECTION 5: FINANCIALS ─────────────────────── */
 const FinancialsSection = memo(({ data }: { data: PlanData["financials"] }) => {
   if (!data) return null;
-  const years = [
-    { label: "Year 1", value: data.year1 },
-    { label: "Year 2", value: data.year2 },
-    { label: "Year 3", value: data.year3 },
-  ].filter(y => y.value != null) as { label: string; value: number }[];
-
-  const maxVal = years.length > 0 ? Math.max(...years.map(y => y.value)) : 1;
+  // API returns year1_revenue etc. as strings like "$250,000" — display as-is
+  const yearStrings = [
+    { label: "Year 1", value: data.year1_revenue },
+    { label: "Year 2", value: data.year2_revenue },
+    { label: "Year 3", value: data.year3_revenue },
+  ].filter(y => y.value);
 
   const stats = [
     { label: "Startup Cost", value: data.startup_cost },
     { label: "Monthly Burn", value: data.monthly_burn },
-    { label: "Break-even Month", value: data.break_even_month },
+    { label: "Break-even Month", value: data.break_even_month != null ? `Month ${data.break_even_month}` : undefined },
     { label: "Funding Needed", value: data.funding_needed },
   ].filter(s => s.value);
 
   return (
     <Card>
       <h2 className="text-base font-semibold text-foreground mb-5">💰 Financial Projections</h2>
-      {years.length > 0 && (
+      {yearStrings.length > 0 && (
         <div className="flex flex-col gap-3 mb-6">
-          {years.map(y => {
-            const pct = maxVal > 0 ? (y.value / maxVal) * 100 : 0;
-            return (
-              <div key={y.label} className="flex items-center gap-4">
-                <span className="text-xs text-muted-foreground w-12 shrink-0">{y.label}</span>
-                <div className="flex-1 h-3 rounded-full bg-[hsl(240,12%,12%)] overflow-hidden">
-                  <div
-                    className="finance-bar h-3 rounded-full bg-[hsl(258,90%,66%)]"
-                    style={{ "--target-width": `${pct}%` } as React.CSSProperties}
-                  />
-                </div>
-                <span className="text-sm font-bold text-[hsl(258,90%,75%)] w-24 text-right shrink-0">
-                  ${y.value.toLocaleString()}
-                </span>
+          {yearStrings.map((y, idx) => (
+            <div key={y.label} className="flex items-center gap-4">
+              <span className="text-xs text-muted-foreground w-12 shrink-0">{y.label}</span>
+              <div className="flex-1 h-3 rounded-full bg-[hsl(240,12%,12%)] overflow-hidden">
+                <div
+                  className="finance-bar h-3 rounded-full bg-[hsl(258,90%,66%)]"
+                  style={{ "--target-width": `${(idx + 1) * 33}%` } as React.CSSProperties}
+                />
               </div>
-            );
-          })}
+              <span className="text-sm font-bold text-[hsl(258,90%,75%)] w-32 text-right shrink-0">
+                {y.value}
+              </span>
+            </div>
+          ))}
         </div>
       )}
       {stats.length > 0 && (
@@ -276,7 +279,9 @@ const swotQuadrants = [
   { key: "threats",      label: "Threats",      emoji: "⚡", cls: "bg-amber-950/50 border-amber-800/30" },
 ];
 
-const RiskSwotSection = memo(({ risks, swot }: { risks?: Risk[]; swot?: SwotItem }) => {
+const RiskSwotSection = memo(({ risksData }: { risksData?: PlanData["risks"] }) => {
+  const risks = risksData?.risks;
+  const swot = risksData?.swot;
   if (!risks && !swot) return null;
   return (
     <Card>
@@ -284,15 +289,18 @@ const RiskSwotSection = memo(({ risks, swot }: { risks?: Risk[]; swot?: SwotItem
       {risks && risks.length > 0 && (
         <div className="flex flex-col gap-3 mb-6">
           {risks.map((r, i) => {
-            const sev = r.severity ?? "medium";
+            const sevRaw = (r.severity ?? "medium").toLowerCase();
+            const sev = (sevRaw === "high" || sevRaw === "medium" || sevRaw === "low") ? sevRaw : "medium";
             const s = severityMap[sev];
+            // API returns 'risk' field; fallback to 'name'
+            const label = r.risk ?? r.name ?? "Unknown risk";
             return (
               <div key={i} className="flex items-start gap-3">
                 <span className={`text-xs px-2 py-0.5 rounded-full border shrink-0 mt-0.5 ${s.bg} ${s.text} ${s.border}`}>
                   {sev.charAt(0).toUpperCase() + sev.slice(1)}
                 </span>
                 <div>
-                  <p className="text-sm text-white font-medium">{r.name}</p>
+                  <p className="text-sm text-white font-medium">{label}</p>
                   {r.mitigation && <p className="text-xs text-muted-foreground italic mt-0.5">{r.mitigation}</p>}
                 </div>
               </div>
@@ -414,7 +422,7 @@ export default function PlanPage() {
 
   useEffect(() => {
     if (!id) { setError("No plan ID provided."); setLoading(false); return; }
-    fetch(`http://localhost:8000/api/plan/${id}`)
+    fetch(ENDPOINTS.getPlan(id))
       .then(r => { if (!r.ok) throw new Error(`Server returned ${r.status}`); return r.json(); })
       .then((data: PlanData) => { setPlan(data); setLoading(false); })
       .catch(e => { setError(e.message); setLoading(false); });
@@ -443,11 +451,11 @@ export default function PlanPage() {
         </div>
 
         <ValidationSection data={plan.validation} />
-        <MarketSection data={plan.market} />
+        <MarketSection data={plan.market_research} />
         <PersonasSection personas={plan.personas} />
         <BusinessPlanSection data={plan.business_plan} />
         <FinancialsSection data={plan.financials} />
-        <RiskSwotSection risks={plan.risks} swot={plan.swot} />
+        <RiskSwotSection risksData={plan.risks} />
 
         <footer className="text-center text-xs text-muted-foreground/40 mt-8 pb-8">
           Powered by MongoDB MCP + Gemini 3 · PitchCraft
