@@ -1,7 +1,7 @@
 """The 7-step PitchCraft agent with multi-model support.
 
 Model tiers (user-selectable; Gemini auto-falls-back to Llama):
-  Tier 1 — gemini   : Gemini 3.1 Flash-Lite           (Google AI)
+  Tier 1 — gemini   : Gemini 3 Flash           (Google AI)
   Tier 2 — llama    : Llama 3.3 70B Instruct (Free)   (OpenRouter)
   Tier 3 — deepseek : DeepSeek V4 Flash                (NVIDIA)
   Tier 4 — minimax  : MiniMax M2.7                     (NVIDIA)
@@ -30,10 +30,14 @@ load_dotenv()
 
 # Gemini client (tier 1) — configured lazily so a missing key doesn't crash import
 _gemini_model = None
+_gemini_model_name: str | None = None  # track which model was cached
+
 
 def _get_gemini_model():
-    global _gemini_model
-    if _gemini_model is not None:
+    global _gemini_model, _gemini_model_name
+    current_name = os.getenv("GEMINI_MODEL", "gemini-3.0-flash")
+    # If env changed (e.g. .env reloaded) reset the cache
+    if _gemini_model is not None and _gemini_model_name == current_name:
         return _gemini_model
     api_key = os.getenv("GEMINI_API_KEY", "")
     if not api_key or api_key.startswith("your") or api_key.startswith("<"):
@@ -42,13 +46,13 @@ def _get_gemini_model():
             "Set a real key in backend/.env to use the Gemini model."
         )
     genai.configure(api_key=api_key)
-    model_name = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-    _gemini_model = genai.GenerativeModel(model_name)
+    _gemini_model = genai.GenerativeModel(current_name)
+    _gemini_model_name = current_name
     return _gemini_model
 
 MODEL_CONFIGS: dict[str, dict] = {
     "gemini": {
-        "display": "Gemini 3.1 Flash-Lite",
+        "display": "Gemini 3 Flash",
         "tier": 1,
         "provider": "gemini",
     },

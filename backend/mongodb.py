@@ -296,6 +296,18 @@ def get_plan_by_token(token: str) -> dict | None:
     return business_plans.find_one({"share_token": token})
 
 
+def get_plan_count() -> int:
+    """Return total number of business plans in the database. Returns 0 if DB is unavailable."""
+    business_plans, _ = _collections()
+    if business_plans is None:
+        return 0
+    try:
+        return business_plans.count_documents({})
+    except Exception:
+        return 0
+
+
+
 def search_market_data(industry_keyword: str) -> dict:
     """Find the best-matching seeded industry for a free-text keyword.
 

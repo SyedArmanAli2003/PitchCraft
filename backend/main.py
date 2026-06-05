@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from models import IdeaRequest
 from agent import run_pitchcraft_agent, get_models_list
-from mongodb import init_db, save_plan, get_plan, get_plan_by_token
+from mongodb import init_db, save_plan, get_plan, get_plan_by_token, get_plan_count
 
 
 @asynccontextmanager
@@ -33,6 +33,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/api/stats")
+async def get_stats():
+    """Return total number of plans generated — used by the frontend hero counter."""
+    return {"total_plans": get_plan_count()}
 
 
 @app.get("/api/models")

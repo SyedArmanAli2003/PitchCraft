@@ -1,0 +1,214 @@
+"use client"
+import { memo } from "react"
+import type { AgentStep } from "@/lib/types"
+
+const SPECIALISTS: Record<number, string> = {
+  1: "Strategy Analyst",
+  2: "Market Research · MongoDB",
+  3: "Customer Insights",
+  4: "Business Architect",
+  5: "Financial Modeller",
+  6: "Risk & Compliance",
+  7: "Chief of Staff",
+}
+
+interface StepCardProps {
+  step: AgentStep
+}
+
+type ToolKey = AgentStep["tool"]
+
+const TOOL_BADGE: Record<ToolKey, { label: string; bg: string; color: string; border: string }> = {
+  gemini:   { label: "GEMINI",   bg: "rgba(124,58,237,0.12)", color: "hsl(258,80%,78%)",  border: "rgba(124,58,237,0.25)" },
+  llama:    { label: "LLAMA",    bg: "rgba(34,197,94,0.1)",   color: "rgb(74,222,128)",   border: "rgba(34,197,94,0.25)"  },
+  deepseek: { label: "DEEPSEEK", bg: "rgba(14,165,233,0.1)",  color: "rgb(125,211,252)",  border: "rgba(14,165,233,0.25)" },
+  minimax:  { label: "MINIMAX",  bg: "rgba(234,179,8,0.1)",   color: "rgb(250,204,21)",   border: "rgba(234,179,8,0.25)"  },
+  mongodb:  { label: "MONGODB",  bg: "rgba(34,197,94,0.12)",  color: "rgb(74,222,128)",   border: "rgba(34,197,94,0.25)"  },
+  system:   { label: "SYSTEM",   bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", border: "rgba(255,255,255,0.12)" },
+}
+
+function ToolBadge({ tool }: { tool: ToolKey }) {
+  const b = TOOL_BADGE[tool] ?? TOOL_BADGE.gemini
+  return (
+    <span className="text-xs px-2 py-0.5 rounded-full"
+      style={{ background: b.bg, color: b.color, border: `1px solid ${b.border}` }}>
+      {b.label}
+    </span>
+  )
+}
+
+
+
+function StepCard({ step }: StepCardProps) {
+  const { stepNumber, name, status, data, startedAt, completedAt } = step
+  const duration = startedAt && completedAt
+    ? ((completedAt - startedAt) / 1000).toFixed(1) + "s"
+    : null
+
+  const borderColor = {
+    waiting:  "rgba(255,255,255,0.06)",
+    running:  "rgba(124,58,237,0.5)",
+    complete: "rgba(34,197,94,0.4)",
+    error:    "rgba(239,68,68,0.4)",
+  }[status]
+
+  const circleStyle = {
+    waiting:  { background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.35)" },
+    running:  { background: "rgba(124,58,237,0.2)",   color: "hsl(258,90%,75%)" },
+    complete: { background: "rgba(34,197,94,0.15)",   color: "rgb(74,222,128)" },
+    error:    { background: "rgba(239,68,68,0.15)",   color: "rgb(252,165,165)" },
+  }[status]
+
+  return (
+    <div
+      className="w-full rounded-2xl p-5 mb-3 transition-all duration-300"
+      style={{
+        background: "hsl(240,15%,8%)",
+        border: `1px solid ${borderColor}`,
+        opacity: status === "waiting" ? 0.5 : 1,
+        boxShadow: status === "running" ? "0 0 20px rgba(124,58,237,0.12)" : "none",
+      }}
+    >
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <div
+            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${status === "running" ? "animate-pulse" : ""}`}
+            style={circleStyle}
+          >
+            {status === "complete" ? "✓" : stepNumber}
+          </div>
+          <div>
+            <p className="text-sm font-medium text-white">{name}</p>
+            {status === "running" && (
+              <p className="text-xs mt-0.5" style={{ color: "hsl(258,80%,72%)" }}>
+                ⚡ {SPECIALISTS[stepNumber]} is working...
+              </p>
+            )}
+            {status === "complete" && duration && (
+              <p className="text-xs mt-0.5" style={{ color: "rgba(74,222,128,0.8)" }}>
+                ✓ {SPECIALISTS[stepNumber]} · done in {duration}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {status !== "waiting" && (
+            <ToolBadge tool={step.tool} />
+          )}
+          {status === "running" && (
+            <div className="w-4 h-4 rounded-full border-2 animate-spin"
+              style={{ borderColor: "hsl(258,90%,66%)", borderTopColor: "transparent" }}
+            />
+          )}
+          {status === "complete" && <span className="text-xs" style={{ color: "rgb(74,222,128)" }}>Done</span>}
+          {status === "error" && <span className="text-xs text-red-400">Failed</span>}
+        </div>
+      </div>
+
+      {/* Expandable content */}
+      <div className={`step-content ${status === "complete" && data ? "open" : ""}`}>
+        {status === "complete" && data && (
+          <div className="mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <StepData stepNumber={stepNumber} data={data} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function StepData({ stepNumber, data }: { stepNumber: number; data: Record<string, unknown> }) {
+  const val = (key: string) => data[key] as string | undefined
+
+  if (stepNumber === 1) return (
+    <div className="flex flex-wrap gap-2">
+      <span className="text-xs px-2 py-1 rounded-full"
+        style={{ background: (data.viability_score as number) >= 7 ? "rgba(34,197,94,0.15)" : "rgba(234,179,8,0.15)", color: (data.viability_score as number) >= 7 ? "rgb(74,222,128)" : "rgb(250,204,21)" }}>
+        Score: {data.viability_score as number}/10
+      </span>
+      <p className="text-sm w-full" style={{ color: "rgba(255,255,255,0.7)" }}>{val("one_line_summary")}</p>
+      {(data.main_concerns as string[] | undefined)?.map((c, i) => (
+        <span key={i} className="text-xs px-2 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.1)", color: "rgb(252,165,165)" }}>⚠ {c}</span>
+      ))}
+    </div>
+  )
+
+  if (stepNumber === 2) return (
+    <div className="grid grid-cols-2 gap-3 text-sm">
+      <div><p style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.7rem" }}>MARKET SIZE</p><p className="text-white font-medium">{val("market_size")}</p></div>
+      <div><p style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.7rem" }}>GROWTH RATE</p><p className="text-white font-medium">{val("growth_rate")}</p></div>
+      <div className="col-span-2"><p style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.7rem" }}>MARKET GAP</p><p style={{ color: "rgba(255,255,255,0.7)" }}>{val("market_gap")}</p></div>
+    </div>
+  )
+
+  if (stepNumber === 3) return (
+    <div className="grid grid-cols-3 gap-2">
+      {(data.personas as Array<{ name: string; job: string; willingness_to_pay: string }> | undefined)?.map((p, i) => (
+        <div key={i} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center mb-2 text-sm font-bold"
+            style={{ background: "rgba(124,58,237,0.15)", color: "hsl(258,80%,78%)" }}>
+            {p.name.slice(0,2).toUpperCase()}
+          </div>
+          <p className="text-xs font-medium text-white">{p.name}</p>
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>{p.job}</p>
+          <p className="text-xs mt-1" style={{ color: "rgb(74,222,128)" }}>{p.willingness_to_pay}</p>
+        </div>
+      ))}
+    </div>
+  )
+
+  if (stepNumber === 4) return (
+    <div className="grid grid-cols-3 gap-3 text-xs">
+      {["problem","solution","unique_value_proposition"].map((key, i) => (
+        <div key={key} className="p-3 rounded-lg" style={{ background: "rgba(255,255,255,0.03)", borderTop: `2px solid ${["rgba(239,68,68,0.5)","rgba(34,197,94,0.5)","rgba(124,58,237,0.5)"][i]}` }}>
+          <p className="uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.65rem" }}>{["Problem","Solution","USP"][i]}</p>
+          <p style={{ color: "rgba(255,255,255,0.75)", lineHeight: "1.6" }}>{val(key)}</p>
+        </div>
+      ))}
+    </div>
+  )
+
+  if (stepNumber === 5) return (
+    <div className="space-y-2">
+      {[["Year 1", val("year1_revenue"), 40],["Year 2", val("year2_revenue"), 65],["Year 3", val("year3_revenue"), 90]].map(([yr, rev, pct]) => (
+        <div key={String(yr)} className="flex items-center gap-3 text-xs">
+          <span className="w-12 text-right" style={{ color: "rgba(255,255,255,0.4)" }}>{yr}</span>
+          <div className="flex-1 h-2 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
+            <div className="h-full rounded-full" style={{ background: "hsl(258,85%,64%)", width: `${pct}%` }} />
+          </div>
+          <span className="text-white font-medium w-24 text-right">{rev}</span>
+        </div>
+      ))}
+      <p className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
+        Break-even: month {data.break_even_month as number} · Funding: {val("funding_needed")}
+      </p>
+    </div>
+  )
+
+  if (stepNumber === 6) return (
+    <div className="space-y-2">
+      {(data.risks as Array<{ risk: string; severity: string; mitigation: string }> | undefined)?.slice(0,3).map((r, i) => (
+        <div key={i} className="flex items-start gap-2 text-xs">
+          <span className="px-2 py-0.5 rounded-full flex-shrink-0" style={{
+            background: r.severity === "High" ? "rgba(239,68,68,0.15)" : r.severity === "Medium" ? "rgba(234,179,8,0.15)" : "rgba(34,197,94,0.15)",
+            color: r.severity === "High" ? "rgb(252,165,165)" : r.severity === "Medium" ? "rgb(250,204,21)" : "rgb(74,222,128)",
+          }}>{r.severity}</span>
+          <p style={{ color: "rgba(255,255,255,0.7)" }}>{r.risk}</p>
+        </div>
+      ))}
+    </div>
+  )
+
+  if (stepNumber === 7) return (
+    <div className="text-center py-2">
+      <p className="text-2xl mb-2">🎉</p>
+      <p className="text-sm font-medium text-white">Business plan complete!</p>
+      <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.45)" }}>Saved to MongoDB · Share link ready</p>
+    </div>
+  )
+
+  return null
+}
+
+export default memo(StepCard)
