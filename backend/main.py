@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from models import IdeaRequest
-from agent import run_pitchcraft_agent
+from agent import run_pitchcraft_agent, get_models_list
 from mongodb import init_db, save_plan, get_plan, get_plan_by_token
 
 
@@ -35,13 +35,24 @@ app.add_middleware(
 )
 
 
+@app.get("/api/models")
+async def list_models():
+    """Return all available model tiers the frontend can offer as choices."""
+    return {"models": get_models_list()}
+
+
 @app.post("/api/generate")
 async def generate_plan(request: IdeaRequest):
-    """Kick off the agent and stream each step back as Server-Sent Events."""
+    """Kick off the agent and stream each step back as Server-Sent Events.
+
+    Pass { "idea": "...", "model": "gemini"|"llama"|"deepseek"|"minimax" }
+    in the request body.  Defaults to "gemini" (with Llama auto-fallback).
+    """
     plan_id = save_plan(request.idea)
+    model_key = request.model  # validated by Pydantic Literal type
 
     async def event_stream():
-        async for step in run_pitchcraft_agent(request.idea, plan_id):
+        async for step in run_pitchcraft_agent(request.idea, plan_id, model_key):
             yield f"data: {json.dumps(step)}\n\n"
 
     return StreamingResponse(
@@ -49,6 +60,7 @@ async def generate_plan(request: IdeaRequest):
         media_type="text/event-stream",
         headers={
             "X-Plan-ID": plan_id,
+            "X-Model": model_key,
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
             "Connection": "keep-alive",

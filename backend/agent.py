@@ -1,7 +1,10 @@
-"""The 7-step PitchCraft agent.
+"""The 7-step PitchCraft agent with multi-model support.
 
-Each step calls Gemini, parses the JSON result, persists it to MongoDB and
-yields a progress event so the API can stream the plan as it is built.
+Model tiers (user-selectable; Gemini auto-falls-back to Llama):
+  Tier 1 — gemini   : Gemini 3.1 Flash-Lite           (Google AI)
+  Tier 2 — llama    : Llama 3.3 70B Instruct (Free)   (OpenRouter)
+  Tier 3 — deepseek : DeepSeek V4 Flash                (NVIDIA)
+  Tier 4 — minimax  : MiniMax M2.7                     (NVIDIA)
 """
 
 import os
@@ -10,6 +13,7 @@ import secrets
 import asyncio
 
 import google.generativeai as genai
+from openai import OpenAI
 from dotenv import load_dotenv
 
 from mongodb import (
@@ -20,21 +24,66 @@ from mongodb import (
 
 load_dotenv()
 
+# --------------------------------------------------------------------------- #
+# Model registry
+# --------------------------------------------------------------------------- #
+
+# Gemini client (tier 1)
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+_gemini_model = genai.GenerativeModel(os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite"))
 
-# Model is configurable so it's easy to switch as new versions ship.
-# NOTE: this must be the API model ID (lowercase, hyphenated) — the AI Studio
-# display name "Gemini 3.1 Flash-Lite" maps to "gemini-3.1-flash-lite".
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
-model = genai.GenerativeModel(MODEL_NAME)
+MODEL_CONFIGS: dict[str, dict] = {
+    "gemini": {
+        "display": "Gemini 3.1 Flash-Lite",
+        "tier": 1,
+        "provider": "gemini",
+    },
+    "llama": {
+        "display": "Llama 3.3 70B Instruct (Free)",
+        "tier": 2,
+        "provider": "openrouter",
+        "model_id": "meta-llama/llama-3.3-70b-instruct:free",
+        "base_url": "https://openrouter.ai/api/v1",
+        "api_key_env": "OPENROUTER_API_KEY",
+    },
+    "deepseek": {
+        "display": "DeepSeek V4 Flash",
+        "tier": 3,
+        "provider": "nvidia",
+        "model_id": "deepseek-ai/deepseek-v4-flash",
+        "base_url": "https://integrate.api.nvidia.com/v1",
+        "api_key_env": "NVIDIA_API_KEY_DEEPSEEK",
+        "extra_body": {
+            "chat_template_kwargs": {"thinking": True, "reasoning_effort": "high"}
+        },
+        "max_tokens": 16384,
+    },
+    "minimax": {
+        "display": "MiniMax M2.7",
+        "tier": 4,
+        "provider": "nvidia",
+        "model_id": "minimaxai/minimax-m2.7",
+        "base_url": "https://integrate.api.nvidia.com/v1",
+        "api_key_env": "NVIDIA_API_KEY_MINIMAX",
+        "max_tokens": 8192,
+    },
+}
 
+
+def get_models_list() -> list[dict]:
+    """Return the model registry in a format safe to expose via the API."""
+    return [
+        {"key": k, "display": v["display"], "tier": v["tier"]}
+        for k, v in MODEL_CONFIGS.items()
+    ]
+
+
+# --------------------------------------------------------------------------- #
+# Core call helpers
+# --------------------------------------------------------------------------- #
 
 def parse_json_response(text: str) -> dict:
-    """Strip markdown code fences from a model response and parse the JSON.
-
-    Falls back to {"raw": text} when the model returns something that isn't
-    valid JSON, so the pipeline never crashes on a malformed step.
-    """
+    """Strip markdown fences from a model response and parse the JSON."""
     clean = text.replace("```json", "").replace("```", "").strip()
     try:
         return json.loads(clean)
@@ -42,19 +91,77 @@ def parse_json_response(text: str) -> dict:
         return {"raw": text}
 
 
-async def _generate(prompt: str) -> dict:
-    """Run the (synchronous) Gemini call off the event loop and parse it."""
-    response = await asyncio.to_thread(model.generate_content, prompt)
+def _call_gemini(prompt: str) -> dict:
+    response = _gemini_model.generate_content(prompt)
     return parse_json_response(response.text)
 
 
-async def run_pitchcraft_agent(idea: str, plan_id: str):
-    """Generate a full business plan, yielding one event per completed step.
+def _call_openai_compat(prompt: str, cfg: dict) -> dict:
+    """Shared caller for OpenRouter and NVIDIA (both speak the OpenAI API)."""
+    api_key = os.getenv(cfg["api_key_env"], "")
+    client = OpenAI(base_url=cfg["base_url"], api_key=api_key)
 
-    Each step is wrapped individually: if a step fails, the client is told
-    exactly which one broke, the plan is marked "failed", and generation stops.
+    kwargs: dict = {
+        "model": cfg["model_id"],
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 1,
+        "top_p": 0.95,
+        "max_tokens": cfg.get("max_tokens", 8192),
+    }
+
+    if cfg["provider"] == "openrouter":
+        kwargs["extra_headers"] = {
+            "HTTP-Referer": "https://pitchcraft.app",
+            "X-Title": "PitchCraft",
+        }
+
+    if "extra_body" in cfg:
+        kwargs["extra_body"] = cfg["extra_body"]
+
+    completion = client.chat.completions.create(**kwargs)
+    content = completion.choices[0].message.content or ""
+    return parse_json_response(content)
+
+
+async def _call_model(prompt: str, model_key: str) -> dict:
+    """Dispatch to the right provider, running the sync call off the event loop."""
+    cfg = MODEL_CONFIGS[model_key]
+    if cfg["provider"] == "gemini":
+        return await asyncio.to_thread(_call_gemini, prompt)
+    return await asyncio.to_thread(_call_openai_compat, prompt, cfg)
+
+
+async def _generate(prompt: str, model_key: str = "gemini") -> dict:
+    """Call the chosen model.
+
+    When model_key is 'gemini' and the call fails, automatically retries with
+    Llama (tier 2) before propagating the error.
     """
+    try:
+        return await _call_model(prompt, model_key)
+    except Exception as primary_err:
+        if model_key == "gemini":
+            try:
+                result = await _call_model(prompt, "llama")
+                result["_fallback"] = "llama"
+                return result
+            except Exception:
+                pass  # surface original Gemini error, not the fallback error
+        raise primary_err
+
+
+# --------------------------------------------------------------------------- #
+# 7-step agent
+# --------------------------------------------------------------------------- #
+
+async def run_pitchcraft_agent(idea: str, plan_id: str, model_key: str = "gemini"):
+    """Generate a full business plan, yielding one SSE event per completed step."""
     update_plan(plan_id, "status", "generating")
+    update_plan(plan_id, "model", MODEL_CONFIGS[model_key]["display"])
+
+    # convenience wrapper — every step call just passes the current model_key
+    async def gen(prompt: str) -> dict:
+        return await _generate(prompt, model_key)
 
     # ----- STEP 1 — Validate idea -------------------------------------- #
     prompt1 = f"""Analyze this startup idea: "{idea}"
@@ -69,7 +176,7 @@ Return ONLY valid JSON:
   "main_concerns": ["concern1", "concern2"]
 }}"""
     try:
-        validation = await _generate(prompt1)
+        validation = await gen(prompt1)
         update_plan(plan_id, "validation", validation)
         yield {"step": 1, "name": "Validation",
                "status": "complete", "data": validation}
@@ -82,8 +189,6 @@ Return ONLY valid JSON:
     # ----- STEP 2 — Search MongoDB for market data --------------------- #
     industry = validation.get("target_market", "")
     market = search_market_data(industry)
-
-    # MCP Tool call — gives the agent memory from past plans.
     mcp_context = mcp_search_similar_plans(
         validation.get("target_market", "technology")
     )
@@ -104,7 +209,7 @@ Return ONLY valid JSON:
   "opportunity_score": 1-10
 }}"""
     try:
-        market_research = await _generate(prompt2)
+        market_research = await gen(prompt2)
         update_plan(plan_id, "market_research", market_research)
         yield {"step": 2, "name": "Market Research",
                "status": "complete", "data": market_research}
@@ -130,7 +235,7 @@ Create 3 customer personas. Return ONLY valid JSON:
   ]
 }}"""
     try:
-        personas = await _generate(prompt3)
+        personas = await gen(prompt3)
         update_plan(plan_id, "personas", personas.get("personas", []))
         yield {"step": 3, "name": "Customer Personas",
                "status": "complete", "data": personas}
@@ -155,7 +260,7 @@ Return ONLY valid JSON:
   ]
 }}"""
     try:
-        business_plan = await _generate(prompt4)
+        business_plan = await gen(prompt4)
         update_plan(plan_id, "business_plan", business_plan)
         yield {"step": 4, "name": "Business Plan",
                "status": "complete", "data": business_plan}
@@ -179,7 +284,7 @@ Return ONLY valid JSON:
   "funding_needed": "string"
 }}"""
     try:
-        financials = await _generate(prompt5)
+        financials = await gen(prompt5)
         update_plan(plan_id, "financials", financials)
         yield {"step": 5, "name": "Financial Projections",
                "status": "complete", "data": financials}
@@ -208,7 +313,7 @@ Return ONLY valid JSON:
   }}
 }}"""
     try:
-        risks = await _generate(prompt6)
+        risks = await gen(prompt6)
         update_plan(plan_id, "risks", risks)
         yield {"step": 6, "name": "Risk Analysis",
                "status": "complete", "data": risks}
@@ -225,7 +330,8 @@ Return ONLY valid JSON:
         update_plan(plan_id, "status", "complete")
         yield {"step": 7, "name": "Complete",
                "status": "complete",
-               "data": {"share_token": share_token, "plan_id": plan_id}}
+               "data": {"share_token": share_token, "plan_id": plan_id,
+                        "model_used": MODEL_CONFIGS[model_key]["display"]}}
     except Exception as e:
         update_plan(plan_id, "status", "failed")
         yield {"step": 7, "name": "Complete",
