@@ -35,7 +35,12 @@ def _get_db():
         return None
 
     try:
-        _client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+        _client = MongoClient(
+            uri,
+            serverSelectionTimeoutMS=5000,
+            tls=True,
+            tlsAllowInvalidCertificates=True,   # fixes TLSV1_ALERT_INTERNAL_ERROR on Python 3.12+
+        )
         _client.admin.command("ping")  # quick connectivity check
         _db = _client[DB_NAME]
         _mongo_available = True

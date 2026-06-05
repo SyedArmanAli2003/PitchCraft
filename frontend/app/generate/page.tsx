@@ -6,22 +6,13 @@ import StepCard from "@/components/StepCard"
 import type { AgentStep } from "@/lib/types"
 import { API, type ModelKey, type ModelOption } from "@/lib/config"
 
-const INITIAL_STEPS: AgentStep[] = [
-  { stepNumber:1, name:"Validate Idea",         status:"waiting", tool:"gemini"  },
-  { stepNumber:2, name:"Research Market",       status:"waiting", tool:"mongodb" },
-  { stepNumber:3, name:"Define Audience",       status:"waiting", tool:"gemini"  },
-  { stepNumber:4, name:"Build Business Plan",   status:"waiting", tool:"gemini"  },
-  { stepNumber:5, name:"Financial Projections", status:"waiting", tool:"gemini"  },
-  { stepNumber:6, name:"Risk Analysis",         status:"waiting", tool:"gemini"  },
-  { stepNumber:7, name:"Save & Export",         status:"waiting", tool:"system"  },
-]
 
 // Static fallback — matches backend MODEL_CONFIGS exactly
 const FALLBACK_MODELS: ModelOption[] = [
-  { key: "gemini",   display: "Gemini Flash-Lite",           tier: 1 },
-  { key: "llama",    display: "Llama 3.3 70B (Free)",        tier: 2 },
-  { key: "deepseek", display: "DeepSeek V4 Flash",           tier: 3 },
-  { key: "minimax",  display: "MiniMax M2.7",                tier: 4 },
+  { key: "gemini",   display: "Gemini 2.0 Flash",         tier: 1 },
+  { key: "llama",    display: "Llama 3.3 70B (Free)",     tier: 2 },
+  { key: "deepseek", display: "DeepSeek V4 Flash",        tier: 3 },
+  { key: "minimax",  display: "MiniMax M2.7",             tier: 4 },
 ]
 
 const MODEL_ICONS: Record<ModelKey, string> = {
@@ -112,7 +103,7 @@ function GenerateContent() {
   const searchParams = useSearchParams()
   const [idea, setIdea]              = useState("")
   const [submitted, setSubmitted]    = useState(false)
-  const [steps, setSteps]            = useState<AgentStep[]>(INITIAL_STEPS)
+  const [steps, setSteps]            = useState<AgentStep[]>([])
   const [planId, setPlanId]          = useState<string | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
   const [showGate, setShowGate]      = useState(false)
@@ -240,10 +231,12 @@ function GenerateContent() {
               updateStep(step + 1, { status: "running", startedAt: Date.now() })
             }
 
-            // Navigate to plan on final step
+            // Navigate to plan on final step (skip if MongoDB offline)
             if (step === 7 && status === "complete") {
               const pid = event.data?.plan_id || id
-              if (pid) setTimeout(() => router.push(`/plan/${pid}`), 1200)
+              if (pid && pid !== "no-db") {
+                setTimeout(() => router.push(`/plan/${pid}`), 1200)
+              }
             }
           } catch { /* malformed line */ }
         }
@@ -430,7 +423,7 @@ function GenerateContent() {
             )}
 
             {/* View plan / success */}
-            {planId && completedCount === 7 && (
+            {planId && completedCount === 7 && planId !== "no-db" && (
               <button
                 onClick={() => router.push(`/plan/${planId}`)}
                 className="w-full mt-4 py-4 rounded-xl font-semibold text-white text-sm cursor-pointer"
@@ -438,6 +431,24 @@ function GenerateContent() {
               >
                 View Full Business Plan →
               </button>
+            )}
+
+            {/* Offline success — MongoDB unavailable but generation worked */}
+            {planId === "no-db" && completedCount === 7 && (
+              <div className="w-full mt-4 p-4 rounded-xl text-center"
+                style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)" }}>
+                <p className="text-sm font-semibold mb-1" style={{ color: "rgb(74,222,128)" }}>
+                  🎉 Plan generated successfully!
+                </p>
+                <p className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  MongoDB is offline — plan was not saved. Start the backend with a valid MongoDB URI to enable persistence.
+                </p>
+                <button onClick={reset}
+                  className="text-xs px-4 py-2 rounded-lg cursor-pointer"
+                  style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.12)" }}>
+                  Generate Another Plan
+                </button>
+              </div>
             )}
 
             {/* Reset button — always show when not actively streaming */}

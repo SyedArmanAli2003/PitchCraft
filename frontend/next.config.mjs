@@ -4,8 +4,8 @@ const config = {
   async rewrites() {
     if (process.env.NODE_ENV === "development") {
       return [
-        { source: "/api/:path*", destination: "http://localhost:8000/api/:path*" },
-        { source: "/health", destination: "http://localhost:8000/health" },
+        { source: "/api/:path*", destination: "http://localhost:8001/api/:path*" },
+        { source: "/health", destination: "http://localhost:8001/health" },
       ]
     }
     return []

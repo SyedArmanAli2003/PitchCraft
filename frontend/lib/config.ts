@@ -1,6 +1,6 @@
 const BASE = process.env.NODE_ENV === "production"
   ? (process.env.NEXT_PUBLIC_API_URL || "")
-  : "http://localhost:8000"
+  : "http://localhost:8001"
 
 export const API = {
   generate:   `${BASE}/api/generate`,

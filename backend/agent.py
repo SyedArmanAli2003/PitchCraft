@@ -52,7 +52,7 @@ def _get_gemini_model():
 
 MODEL_CONFIGS: dict[str, dict] = {
     "gemini": {
-        "display": "Gemini 3 Flash",
+        "display": "Gemini 2.0 Flash",
         "tier": 1,
         "provider": "gemini",
     },
