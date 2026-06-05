@@ -1,6 +1,8 @@
 """PitchCraft FastAPI application."""
 
+import os
 import json
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -8,9 +10,17 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from models import IdeaRequest
 from agent import run_pitchcraft_agent
-from mongodb import save_plan, get_plan, get_plan_by_token
+from mongodb import init_db, save_plan, get_plan, get_plan_by_token
 
-app = FastAPI(title="PitchCraft API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Run database connection check + setup on startup."""
+    init_db()
+    yield
+
+
+app = FastAPI(title="PitchCraft API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,6 +46,7 @@ async def generate_plan(request: IdeaRequest):
             "X-Plan-ID": plan_id,
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
         },
     )
 
@@ -61,3 +72,9 @@ async def get_shared_plan(token: str):
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "PitchCraft Agent"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))

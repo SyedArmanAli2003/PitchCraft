@@ -5,8 +5,7 @@ import re
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from pymongo import MongoClient, ASCENDING
-from pymongo.errors import DuplicateKeyError
+from pymongo import MongoClient, ASCENDING, TEXT
 from bson import ObjectId
 
 load_dotenv()
@@ -171,21 +170,34 @@ def seed_market_data() -> None:
         market_data.insert_many(SEED_MARKET_DATA)
 
 
-def _ensure_indexes() -> None:
-    """Create indexes used by the app (idempotent)."""
-    # Unique token, but plans start without one -> partial index on existing tokens.
-    business_plans.create_index(
-        [("share_token", ASCENDING)],
-        unique=True,
-        partialFilterExpression={"share_token": {"$type": "string"}},
-        name="share_token_unique",
-    )
-    market_data.create_index([("industry", ASCENDING)], name="industry_idx")
+def init_db() -> None:
+    """Verify connectivity, seed reference data, and ensure indexes.
 
+    Called once on application startup. Any failure is reported but not raised,
+    so a misconfigured database surfaces a clear message instead of a crash.
+    """
+    try:
+        # 1. Confirm the cluster is reachable (MongoClient connects lazily).
+        client.admin.command("ping")
 
-# Run setup on import.
-_ensure_indexes()
-seed_market_data()
+        # 2. Seed reference data if the collection is empty.
+        seed_market_data()
+
+        # 3. Fast, unique lookups by share token. Plans start without a token,
+        #    so the unique constraint only applies once a string token exists.
+        business_plans.create_index(
+            [("share_token", ASCENDING)],
+            unique=True,
+            partialFilterExpression={"share_token": {"$type": "string"}},
+            name="share_token_unique",
+        )
+
+        # 4. Text index for searching industries.
+        market_data.create_index([("industry", TEXT)], name="industry_text")
+
+        print("✅ MongoDB connected")
+    except Exception as error:  # noqa: BLE001 - report any startup failure
+        print(f"❌ MongoDB failed: {error}")
 
 
 # --------------------------------------------------------------------------- #

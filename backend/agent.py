@@ -46,12 +46,15 @@ async def _generate(prompt: str) -> dict:
 
 
 async def run_pitchcraft_agent(idea: str, plan_id: str):
-    """Generate a full business plan, yielding one event per completed step."""
-    try:
-        # ----- STEP 1 — Validate idea -------------------------------------- #
-        update_plan(plan_id, "status", "generating")
+    """Generate a full business plan, yielding one event per completed step.
 
-        prompt1 = f"""Analyze this startup idea: "{idea}"
+    Each step is wrapped individually: if a step fails, the client is told
+    exactly which one broke, the plan is marked "failed", and generation stops.
+    """
+    update_plan(plan_id, "status", "generating")
+
+    # ----- STEP 1 — Validate idea -------------------------------------- #
+    prompt1 = f"""Analyze this startup idea: "{idea}"
 Return ONLY valid JSON:
 {{
   "viable": true/false,
@@ -62,17 +65,22 @@ Return ONLY valid JSON:
   "innovation_factor": "string",
   "main_concerns": ["concern1", "concern2"]
 }}"""
-
+    try:
         validation = await _generate(prompt1)
         update_plan(plan_id, "validation", validation)
         yield {"step": 1, "name": "Validation",
                "status": "complete", "data": validation}
+    except Exception as e:
+        update_plan(plan_id, "status", "failed")
+        yield {"step": 1, "name": "Validation",
+               "status": "error", "error": str(e)}
+        return
 
-        # ----- STEP 2 — Search MongoDB for market data --------------------- #
-        industry = validation.get("target_market", "")
-        market = search_market_data(industry)
+    # ----- STEP 2 — Search MongoDB for market data --------------------- #
+    industry = validation.get("target_market", "")
+    market = search_market_data(industry)
 
-        prompt2 = f"""For this startup: "{idea}"
+    prompt2 = f"""For this startup: "{idea}"
 Industry context: {json.dumps(market)}
 Return ONLY valid JSON:
 {{
@@ -84,14 +92,19 @@ Return ONLY valid JSON:
   "market_gap": "string",
   "opportunity_score": 1-10
 }}"""
-
+    try:
         market_research = await _generate(prompt2)
         update_plan(plan_id, "market_research", market_research)
         yield {"step": 2, "name": "Market Research",
                "status": "complete", "data": market_research}
+    except Exception as e:
+        update_plan(plan_id, "status", "failed")
+        yield {"step": 2, "name": "Market Research",
+               "status": "error", "error": str(e)}
+        return
 
-        # ----- STEP 3 — Customer personas ---------------------------------- #
-        prompt3 = f"""For startup: "{idea}"
+    # ----- STEP 3 — Customer personas ---------------------------------- #
+    prompt3 = f"""For startup: "{idea}"
 Create 3 customer personas. Return ONLY valid JSON:
 {{
   "personas": [
@@ -105,14 +118,19 @@ Create 3 customer personas. Return ONLY valid JSON:
     }}
   ]
 }}"""
-
+    try:
         personas = await _generate(prompt3)
         update_plan(plan_id, "personas", personas.get("personas", []))
         yield {"step": 3, "name": "Customer Personas",
                "status": "complete", "data": personas}
+    except Exception as e:
+        update_plan(plan_id, "status", "failed")
+        yield {"step": 3, "name": "Customer Personas",
+               "status": "error", "error": str(e)}
+        return
 
-        # ----- STEP 4 — Full business plan --------------------------------- #
-        prompt4 = f"""Write a business plan for: "{idea}"
+    # ----- STEP 4 — Full business plan --------------------------------- #
+    prompt4 = f"""Write a business plan for: "{idea}"
 Return ONLY valid JSON:
 {{
   "problem": "string",
@@ -125,14 +143,19 @@ Return ONLY valid JSON:
     {{"month": 1, "milestone": "string"}}
   ]
 }}"""
-
+    try:
         business_plan = await _generate(prompt4)
         update_plan(plan_id, "business_plan", business_plan)
         yield {"step": 4, "name": "Business Plan",
                "status": "complete", "data": business_plan}
+    except Exception as e:
+        update_plan(plan_id, "status", "failed")
+        yield {"step": 4, "name": "Business Plan",
+               "status": "error", "error": str(e)}
+        return
 
-        # ----- STEP 5 — Financial projections ------------------------------ #
-        prompt5 = f"""Create 3-year financial projection for: "{idea}"
+    # ----- STEP 5 — Financial projections ------------------------------ #
+    prompt5 = f"""Create 3-year financial projection for: "{idea}"
 Revenue model: {business_plan.get('revenue_model', 'SaaS')}
 Return ONLY valid JSON:
 {{
@@ -144,14 +167,19 @@ Return ONLY valid JSON:
   "break_even_month": number,
   "funding_needed": "string"
 }}"""
-
+    try:
         financials = await _generate(prompt5)
         update_plan(plan_id, "financials", financials)
         yield {"step": 5, "name": "Financial Projections",
                "status": "complete", "data": financials}
+    except Exception as e:
+        update_plan(plan_id, "status", "failed")
+        yield {"step": 5, "name": "Financial Projections",
+               "status": "error", "error": str(e)}
+        return
 
-        # ----- STEP 6 — Risk analysis -------------------------------------- #
-        prompt6 = f"""Analyze risks for startup: "{idea}"
+    # ----- STEP 6 — Risk analysis -------------------------------------- #
+    prompt6 = f"""Analyze risks for startup: "{idea}"
 Return ONLY valid JSON:
 {{
   "risks": [
@@ -168,21 +196,27 @@ Return ONLY valid JSON:
     "threats": ["str"]
   }}
 }}"""
-
+    try:
         risks = await _generate(prompt6)
         update_plan(plan_id, "risks", risks)
         yield {"step": 6, "name": "Risk Analysis",
                "status": "complete", "data": risks}
+    except Exception as e:
+        update_plan(plan_id, "status", "failed")
+        yield {"step": 6, "name": "Risk Analysis",
+               "status": "error", "error": str(e)}
+        return
 
-        # ----- STEP 7 — Finalize + generate share token -------------------- #
+    # ----- STEP 7 — Finalize + generate share token -------------------- #
+    try:
         share_token = secrets.token_urlsafe(6)
         update_plan(plan_id, "share_token", share_token)
         update_plan(plan_id, "status", "complete")
         yield {"step": 7, "name": "Complete",
                "status": "complete",
                "data": {"share_token": share_token, "plan_id": plan_id}}
-
-    except Exception as exc:  # noqa: BLE001 - surface any step failure to client
+    except Exception as e:
         update_plan(plan_id, "status", "failed")
-        yield {"step": 0, "name": "Error",
-               "status": "failed", "data": {"error": str(exc)}}
+        yield {"step": 7, "name": "Complete",
+               "status": "error", "error": str(e)}
+        return

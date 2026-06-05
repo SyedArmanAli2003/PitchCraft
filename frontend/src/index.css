@@ -44,3 +44,44 @@
     @apply bg-background text-foreground font-sora antialiased;
   }
 }
+
+/* ─── Entrance animation ───────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+/* ─── Orb float keyframes ──────────────────────────────────────────────── */
+@keyframes float1 {
+  from { transform: translate(0, 0); }
+  to   { transform: translate(30px, -20px); }
+}
+
+@keyframes float2 {
+  from { transform: translate(0, 0); }
+  to   { transform: translate(-25px, 30px); }
+}
+
+@keyframes float3 {
+  from { transform: translate(0, 0); }
+  to   { transform: translate(20px, 20px); }
+}
+
+/* ─── Slow spin (step indicator icon) ─────────────────────────────────── */
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spinSlow 4s linear infinite;
+  display: inline-block;
+}
