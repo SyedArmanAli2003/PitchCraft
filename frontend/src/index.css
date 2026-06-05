@@ -85,3 +85,33 @@
   animation: spinSlow 4s linear infinite;
   display: inline-block;
 }
+
+/* ─── Pulse (streaming status dot) ────────────────────────────────────────── */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+/* ─── Financial bar grow animation ─────────────────────────────────────────── */
+@keyframes growBar {
+  from { width: 0; }
+  to   { width: var(--target-width); }
+}
+
+.finance-bar {
+  animation: growBar 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  width: 0;
+}
+
+/* ─── Print styles ──────────────────────────────────────────────────────────── */
+@media print {
+  .no-print { display: none !important; }
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12pt;
+  }
+  #root {
+    height: auto !important;
+  }
+}

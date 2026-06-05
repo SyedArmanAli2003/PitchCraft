@@ -1,4 +1,7 @@
+import { useNavigate } from "react-router-dom";
 import AnimatedBackground from "./AnimatedBackground";
+import { useIdea } from "../context/IdeaContext";
+import { useState } from "react";
 
 const TECH_PILLS = [
   { icon: "🍃", label: "MongoDB" },
@@ -10,6 +13,17 @@ const TECH_PILLS = [
 const FADE_UP = "fadeUp 0.7s cubic-bezier(0.16,1,0.3,1) forwards";
 
 export default function HeroSection() {
+  const navigate = useNavigate();
+  const { setIdea } = useIdea();
+  const [localIdea, setLocalIdea] = useState("");
+
+  const handleGenerate = () => {
+    if (localIdea.trim()) {
+      setIdea(localIdea.trim());
+    }
+    navigate("/generate");
+  };
+
   return (
     <section
       className="relative min-h-screen flex items-end overflow-hidden"
@@ -109,12 +123,42 @@ export default function HeroSection() {
           and saves everything to your dashboard.
         </p>
 
+        {/* Optional inline idea input above CTA */}
+        <div
+          className="pointer-events-auto"
+          style={{ opacity: 0, animation: FADE_UP, animationDelay: "0.6s", marginBottom: 14 }}
+        >
+          <input
+            type="text"
+            value={localIdea}
+            onChange={(e) => setLocalIdea(e.target.value)}
+            placeholder="Got an idea? Type it here…"
+            onKeyDown={(e) => { if (e.key === "Enter") handleGenerate(); }}
+            style={{
+              width: "100%",
+              background: "hsla(240,15%,8%,0.9)",
+              border: "1px solid hsl(240,12%,22%)",
+              borderRadius: 10,
+              padding: "12px 16px",
+              color: "#fff",
+              fontSize: 14,
+              outline: "none",
+              fontFamily: "Sora, sans-serif",
+              transition: "border-color 0.2s ease",
+            }}
+            onFocus={(e) => { (e.currentTarget as HTMLInputElement).style.borderColor = "hsl(258,90%,66%)"; }}
+            onBlur={(e) => { (e.currentTarget as HTMLInputElement).style.borderColor = "hsl(240,12%,22%)"; }}
+          />
+        </div>
+
         {/* CTA buttons */}
         <div
           className="pointer-events-auto flex flex-wrap gap-3"
           style={{ opacity: 0, animation: FADE_UP, animationDelay: "0.7s" }}
         >
           <button
+            id="hero-generate-btn"
+            onClick={handleGenerate}
             className="text-white font-semibold px-8 py-4 text-sm rounded-sm active:scale-[0.97] cursor-pointer"
             style={{
               backgroundColor: "hsl(258,90%,66%)",

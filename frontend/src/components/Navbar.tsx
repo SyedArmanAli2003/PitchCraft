@@ -1,3 +1,5 @@
+import { useNavigate } from "react-router-dom";
+
 const NAV_LINKS = [
   "How It Works",
   "Examples",
@@ -7,10 +9,16 @@ const NAV_LINKS = [
 ] as const;
 
 export default function Navbar() {
+  const navigate = useNavigate();
+
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 lg:px-16 py-5">
       {/* Logo */}
-      <a href="/" className="flex items-center gap-1 select-none">
+      <a
+        href="/"
+        className="flex items-center gap-1 select-none"
+        onClick={(e) => { e.preventDefault(); navigate("/"); }}
+      >
         <span className="text-primary mr-0.5">✦</span>
         <span className="text-xl font-semibold text-foreground">
           Pitch<span className="text-primary">Craft</span>
@@ -32,6 +40,8 @@ export default function Navbar() {
 
       {/* CTA button */}
       <button
+        id="navbar-generate-btn"
+        onClick={() => navigate("/generate")}
         className="
           hidden md:inline-flex items-center
           bg-nav-button hover:bg-nav-button/80
