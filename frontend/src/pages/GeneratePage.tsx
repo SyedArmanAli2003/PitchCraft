@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import StepCard, { type StepState, type StepStatus } from "../components/StepCard";
 import { useIdea } from "../context/IdeaContext";
+import { ENDPOINTS } from "../config";
+
 
 /* ─── Initial steps ─────────────────────────────────────────────────────────── */
 const STEP_NAMES = [
@@ -41,7 +43,7 @@ function useGenerateStream() {
     );
 
     try {
-      const response = await fetch("http://localhost:8000/api/generate", {
+      const response = await fetch(ENDPOINTS.generate, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idea }),
