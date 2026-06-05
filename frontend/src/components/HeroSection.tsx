@@ -8,8 +8,12 @@ export default function HeroSection() {
 
   return (
     <section
-      className="relative min-h-screen flex items-end overflow-hidden"
-      style={{ background: "hsl(240,25%,4%)" }}
+      className="relative flex items-end overflow-hidden"
+      style={{
+        background: "hsl(240,25%,4%)",
+        /* Ensure section is always tall enough so the pill never collides with the fixed navbar */
+        minHeight: "max(100dvh, 760px)",
+      }}
     >
       {/* ── Interactive Three.js background ─────────────────── */}
       <ParticleBackground />
@@ -28,11 +32,13 @@ export default function HeroSection() {
 
       {/* ── Hero content — bottom-left anchored ─────────────── */}
       <div
-        className="relative w-full px-8 md:px-14 pb-14 md:pb-20 pt-28"
+        className="relative w-full px-8 md:px-14 pb-14 md:pb-20"
         style={{
           maxWidth: "min(90%, 740px)",
           transform: "translateZ(0)",
           zIndex: 2,
+          /* Enough top clearance so content never starts behind the navbar */
+          paddingTop: "clamp(6rem, 14vh, 10rem)",
         }}
       >
         {/* Pill badge */}
@@ -52,10 +58,7 @@ export default function HeroSection() {
         {/* Heading */}
         <h1
           className="animate-fade-up font-bold uppercase leading-[1.07] tracking-[-0.03em] mb-5"
-          style={{
-            fontSize: "clamp(2.4rem, 5.8vw, 4.8rem)",
-            animationDelay: "0.2s",
-          }}
+          style={{ fontSize: "clamp(2.2rem, 5.5vw, 4.8rem)", animationDelay: "0.2s" }}
         >
           <span style={{ color: "rgba(255,255,255,0.5)", fontWeight: 300, display: "block" }}>
             Turn your idea into a
@@ -78,11 +81,7 @@ export default function HeroSection() {
         {/* Subheading */}
         <p
           className="animate-fade-up font-light mb-3"
-          style={{
-            fontSize: "clamp(1rem, 1.8vw, 1.3rem)",
-            color: "rgba(255,255,255,0.65)",
-            animationDelay: "0.38s",
-          }}
+          style={{ fontSize: "clamp(1rem, 1.8vw, 1.3rem)", color: "rgba(255,255,255,0.65)", animationDelay: "0.38s" }}
         >
           No MBA required. No consultants. Just describe your idea.
         </p>
@@ -103,11 +102,8 @@ export default function HeroSection() {
           projects financials, and analyzes risk — all under 60 seconds.
         </p>
 
-        {/* CTA buttons */}
-        <div
-          className="animate-fade-up flex flex-wrap gap-3"
-          style={{ animationDelay: "0.62s" }}
-        >
+        {/* CTAs */}
+        <div className="animate-fade-up flex flex-wrap gap-3" style={{ animationDelay: "0.62s" }}>
           <button
             id="hero-generate-btn"
             onClick={() => navigate("/generate")}
@@ -137,6 +133,7 @@ export default function HeroSection() {
           </button>
 
           <button
+            onClick={() => navigate("/examples")}
             style={{
               background: "rgba(255,255,255,0.05)",
               color: "rgba(255,255,255,0.8)",
@@ -158,7 +155,7 @@ export default function HeroSection() {
               (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.1)";
             }}
           >
-            See Example Plan
+            See Example Plans
           </button>
         </div>
 
@@ -167,9 +164,7 @@ export default function HeroSection() {
           className="animate-fade-up flex items-center flex-wrap gap-2 mt-7"
           style={{ animationDelay: "0.78s" }}
         >
-          <span style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.72rem" }}>
-            Powered by
-          </span>
+          <span style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.72rem" }}>Powered by</span>
           {TECH_PILLS.map((label) => (
             <span
               key={label}
@@ -189,11 +184,7 @@ export default function HeroSection() {
 
         <p
           className="animate-fade-up mt-3"
-          style={{
-            color: "rgba(255,255,255,0.13)",
-            fontSize: "0.68rem",
-            animationDelay: "0.9s",
-          }}
+          style={{ color: "rgba(255,255,255,0.13)", fontSize: "0.68rem", animationDelay: "0.9s" }}
         >
           Rapid Agent Hackathon 2026 · MongoDB Partner Track
         </p>

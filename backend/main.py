@@ -1,8 +1,13 @@
 """PitchCraft FastAPI application."""
 
 import os
+import sys
 import json
 from contextlib import asynccontextmanager
+
+# Windows consoles default to cp1252; init_db() prints emoji (✅/❌) on startup.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse

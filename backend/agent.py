@@ -23,7 +23,9 @@ load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 # Model is configurable so it's easy to switch as new versions ship.
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.0-flash")
+# NOTE: this must be the API model ID (lowercase, hyphenated) — the AI Studio
+# display name "Gemini 3.1 Flash-Lite" maps to "gemini-3.1-flash-lite".
+MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
 model = genai.GenerativeModel(MODEL_NAME)
 
 
