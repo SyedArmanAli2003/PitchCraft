@@ -1,67 +1,73 @@
 export default function AnimatedBackground() {
   return (
-    <div
-      className="absolute inset-0 overflow-hidden"
-      style={{ backgroundColor: "hsl(240, 25%, 4%)" }}
-    >
-      {/* Orb 1 — large purple, top-right */}
+    <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
+
+      {/* Base dark background */}
+      <div className="absolute inset-0" style={{ background: "hsl(240,25%,4%)" }} />
+
+      {/* Subtle dot grid */}
       <div
-        className="absolute rounded-full"
+        className="absolute inset-0 opacity-[0.18]"
         style={{
-          width: 600,
-          height: 600,
-          top: "-10%",
-          right: "-5%",
-          background: "hsl(258, 90%, 66%)",
-          opacity: 0.12,
-          filter: "blur(80px)",
-          willChange: "transform",
-          animation: "float1 8s ease-in-out infinite alternate",
+          backgroundImage:
+            "radial-gradient(circle, hsl(240,12%,35%) 1px, transparent 1px)",
+          backgroundSize: "32px 32px",
         }}
       />
 
-      {/* Orb 2 — medium cyan, bottom-right */}
+      {/* Orb 1 — large purple, top-right */}
       <div
-        className="absolute rounded-full"
+        className="absolute rounded-full orb-1"
         style={{
-          width: 400,
-          height: 400,
-          bottom: "10%",
-          right: "20%",
-          background: "hsl(195, 100%, 50%)",
+          width: "700px",
+          height: "700px",
+          top: "-15%",
+          right: "-10%",
+          background: "hsl(258,90%,66%)",
+          opacity: 0.07,
+          filter: "blur(90px)",
+          willChange: "transform",
+        }}
+      />
+
+      {/* Orb 2 — mid cyan, bottom-right */}
+      <div
+        className="absolute rounded-full orb-2"
+        style={{
+          width: "450px",
+          height: "450px",
+          bottom: "5%",
+          right: "15%",
+          background: "hsl(195,100%,50%)",
           opacity: 0.04,
           filter: "blur(80px)",
           willChange: "transform",
-          animation: "float2 10s ease-in-out infinite alternate-reverse",
         }}
       />
 
-      {/* Orb 3 — small purple, center-right */}
+      {/* Orb 3 — small purple, center */}
       <div
-        className="absolute rounded-full"
+        className="absolute rounded-full orb-3"
         style={{
-          width: 300,
-          height: 300,
-          top: "30%",
-          right: "35%",
-          background: "hsl(258, 90%, 66%)",
+          width: "320px",
+          height: "320px",
+          top: "35%",
+          right: "40%",
+          background: "hsl(258,90%,66%)",
           opacity: 0.05,
-          filter: "blur(80px)",
+          filter: "blur(70px)",
           willChange: "transform",
-          animation: "float3 12s ease-in-out infinite alternate",
         }}
       />
 
-      {/* Subtle grid overlay */}
+      {/* Bottom vignette */}
       <div
         className="absolute inset-0"
         style={{
-          backgroundImage:
-            "linear-gradient(hsla(240,20%,6%,0.3) 1px, transparent 1px), linear-gradient(90deg, hsla(240,20%,6%,0.3) 1px, transparent 1px)",
-          backgroundSize: "60px 60px",
-          opacity: 0.15,
+          background: "linear-gradient(to top, hsl(240,25%,4%) 0%, transparent 50%)",
         }}
       />
+
     </div>
   );
 }

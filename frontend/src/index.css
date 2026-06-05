@@ -2,28 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Design tokens ─────────────────────────────────────────────────────── */
 @layer base {
   :root {
-    --background: 240 20% 6%;
-    --foreground: 0 0% 96%;
-
-    --primary: 258 90% 66%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 240 15% 12%;
-    --secondary-foreground: 0 0% 96%;
-
-    --muted: 240 12% 14%;
-    --muted-foreground: 240 8% 55%;
-
-    --accent: 195 100% 50%;
-    --accent-foreground: 240 20% 6%;
-
-    --border: 240 12% 18%;
-    --ring: 258 90% 66%;
-
-    --nav-button: 240 12% 14%;
-    --hero-bg: 240 25% 4%;
+    --background:    240 20% 6%;
+    --foreground:    0 0% 96%;
+    --primary:       258 90% 66%;
+    --primary-fg:    0 0% 100%;
+    --secondary:     240 15% 12%;
+    --secondary-fg:  0 0% 96%;
+    --muted:         240 12% 14%;
+    --muted-fg:      240 8% 55%;
+    --accent:        195 100% 50%;
+    --accent-fg:     240 20% 6%;
+    --border:        240 12% 18%;
+    --nav-button:    240 12% 14%;
+    --hero-bg:       240 25% 4%;
   }
 
   *,
@@ -41,44 +35,29 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sora antialiased;
+    font-family: "Sora", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: hsl(240, 25%, 4%);
+    color: hsl(0, 0%, 96%);
+    overflow-x: hidden;
   }
 }
 
-/* ─── Entrance animation ───────────────────────────────────────────────── */
+/* ─── Entrance animation ─────────────────────────────────────────────────── */
 @keyframes fadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(24px);
-    filter: blur(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-    filter: blur(0);
-  }
+  from { opacity: 0; transform: translateY(22px); filter: blur(5px); }
+  to   { opacity: 1; transform: translateY(0);    filter: blur(0); }
 }
 
-/* ─── Orb float keyframes ──────────────────────────────────────────────── */
-@keyframes float1 {
-  from { transform: translate(0, 0); }
-  to   { transform: translate(30px, -20px); }
+.animate-fade-up {
+  opacity: 0;
+  animation: fadeUp 0.72s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes float2 {
-  from { transform: translate(0, 0); }
-  to   { transform: translate(-25px, 30px); }
-}
-
-@keyframes float3 {
-  from { transform: translate(0, 0); }
-  to   { transform: translate(20px, 20px); }
-}
-
-/* ─── Slow spin (step indicator icon) ─────────────────────────────────── */
+/* ─── Slow spin (pill ✦ icon) ────────────────────────────────────────────── */
 @keyframes spinSlow {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+  to { transform: rotate(360deg); }
 }
 
 .animate-spin-slow {
@@ -86,13 +65,13 @@
   display: inline-block;
 }
 
-/* ─── Pulse (streaming status dot) ────────────────────────────────────────── */
+/* ─── Pulse (GeneratePage streaming dot) ─────────────────────────────────── */
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.4; }
 }
 
-/* ─── Financial bar grow animation ─────────────────────────────────────────── */
+/* ─── Financial bar grow (PlanPage) ──────────────────────────────────────── */
 @keyframes growBar {
   from { width: 0; }
   to   { width: var(--target-width); }
@@ -103,15 +82,9 @@
   width: 0;
 }
 
-/* ─── Print styles ──────────────────────────────────────────────────────────── */
+/* ─── Print styles (PlanPage) ────────────────────────────────────────────── */
 @media print {
   .no-print { display: none !important; }
-  body {
-    background: white !important;
-    color: black !important;
-    font-size: 12pt;
-  }
-  #root {
-    height: auto !important;
-  }
+  body      { background: white !important; color: black !important; font-size: 12pt; }
+  #root     { height: auto !important; }
 }

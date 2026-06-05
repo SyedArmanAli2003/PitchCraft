@@ -1,236 +1,198 @@
+import ParticleBackground from "./ParticleBackground";
 import { useNavigate } from "react-router-dom";
-import AnimatedBackground from "./AnimatedBackground";
-import { useIdea } from "../context/IdeaContext";
-import { useState } from "react";
 
-const TECH_PILLS = [
-  { icon: "🍃", label: "MongoDB" },
-  { icon: "✦", label: "Gemini 3 Flash" },
-  { icon: "⚡", label: "FastAPI" },
-  { icon: "◈", label: "Google Cloud" },
-] as const;
-
-const FADE_UP = "fadeUp 0.7s cubic-bezier(0.16,1,0.3,1) forwards";
+const TECH_PILLS = ["🍃 MongoDB", "✦ Gemini 3 Flash", "⚡ FastAPI", "◈ Google Cloud"] as const;
 
 export default function HeroSection() {
   const navigate = useNavigate();
-  const { setIdea } = useIdea();
-  const [localIdea, setLocalIdea] = useState("");
-
-  const handleGenerate = () => {
-    if (localIdea.trim()) {
-      setIdea(localIdea.trim());
-    }
-    navigate("/generate");
-  };
 
   return (
     <section
       className="relative min-h-screen flex items-end overflow-hidden"
-      style={{ backgroundColor: "hsl(240, 25%, 4%)" }}
+      style={{ background: "hsl(240,25%,4%)" }}
     >
-      {/* ── Pure-CSS animated background (replaces Spline) ── */}
-      <AnimatedBackground />
+      {/* ── Interactive Three.js background ─────────────────── */}
+      <ParticleBackground />
 
-      {/* ── Bottom-fade gradient ── */}
+      {/* ── Gradient overlays for content readability ──────── */}
       <div
-        className="absolute inset-0 z-[2] pointer-events-none"
+        className="absolute inset-0 pointer-events-none"
         style={{
-          background:
-            "linear-gradient(to top, hsl(240,25%,4%) 0%, transparent 55%)",
+          background: [
+            "radial-gradient(ellipse 80% 60% at 70% 30%, rgba(109,40,217,0.12) 0%, transparent 70%)",
+            "linear-gradient(to top, hsl(240,25%,4%) 0%, hsla(240,25%,4%,0.75) 35%, transparent 65%)",
+          ].join(", "),
+          zIndex: 1,
         }}
       />
 
-      {/* ── Hero content (bottom-left) ── */}
+      {/* ── Hero content — bottom-left anchored ─────────────── */}
       <div
-        className="relative z-10 pointer-events-none w-full max-w-[90%] sm:max-w-md lg:max-w-3xl px-6 md:px-10 pb-12 md:pb-16 pt-32"
-        style={{ transform: "translateZ(0)" }}
+        className="relative w-full px-8 md:px-14 pb-14 md:pb-20 pt-28"
+        style={{
+          maxWidth: "min(90%, 740px)",
+          transform: "translateZ(0)",
+          zIndex: 2,
+        }}
       >
-
-        {/* Step indicator pill */}
+        {/* Pill badge */}
         <div
-          style={{ opacity: 0, animation: FADE_UP, animationDelay: "0.1s" }}
-          className="mb-5"
+          className="animate-fade-up inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 mb-7 text-xs font-medium select-none"
+          style={{
+            animationDelay: "0.1s",
+            background: "rgba(124,58,237,0.12)",
+            border: "1px solid rgba(124,58,237,0.3)",
+            color: "hsl(258,80%,78%)",
+          }}
         >
-          <span
-            className="inline-flex items-center gap-2 text-xs px-3 py-1 rounded-full"
-            style={{
-              background: "hsla(258,90%,66%,0.12)",
-              border: "1px solid hsla(258,90%,66%,0.4)",
-              color: "hsl(258,90%,66%)",
-            }}
-          >
-            <span className="animate-spin-slow">✦</span>
-            7-step AI agent · MongoDB · Gemini 3
-          </span>
+          <span className="animate-spin-slow inline-block leading-none">✦</span>
+          7-step AI agent · MongoDB · Gemini 3 Flash
         </div>
 
         {/* Heading */}
         <h1
-          className="uppercase tracking-[-0.04em] leading-[1.05] mb-4"
+          className="animate-fade-up font-bold uppercase leading-[1.07] tracking-[-0.03em] mb-5"
           style={{
-            opacity: 0,
-            animation: FADE_UP,
+            fontSize: "clamp(2.4rem, 5.8vw, 4.8rem)",
             animationDelay: "0.2s",
-            fontSize: "clamp(2.8rem, 7vw, 5.5rem)",
-            willChange: "transform",
           }}
         >
-          <span className="block text-foreground/70 font-light">
+          <span style={{ color: "rgba(255,255,255,0.5)", fontWeight: 300, display: "block" }}>
             Turn your idea into a
           </span>
           <span
-            className="block text-primary font-bold"
             style={{
-              textShadow:
-                "0 0 80px rgba(139,92,246,0.6), 0 0 160px rgba(139,92,246,0.2)",
+              color: "hsl(258,85%,74%)",
+              fontWeight: 700,
+              display: "block",
+              textShadow: "0 0 55px rgba(139,92,246,0.55), 0 0 110px rgba(139,92,246,0.2)",
             }}
           >
             Business Plan
           </span>
-          <span className="block text-foreground font-bold">in 60 seconds.</span>
+          <span style={{ color: "rgba(255,255,255,0.95)", fontWeight: 700, display: "block" }}>
+            in 60 seconds.
+          </span>
         </h1>
 
         {/* Subheading */}
         <p
-          className="text-foreground/75 font-light mb-5"
+          className="animate-fade-up font-light mb-3"
           style={{
-            opacity: 0,
-            animation: FADE_UP,
-            animationDelay: "0.4s",
-            fontSize: "clamp(1rem, 2vw, 1.5rem)",
-            willChange: "transform",
+            fontSize: "clamp(1rem, 1.8vw, 1.3rem)",
+            color: "rgba(255,255,255,0.65)",
+            animationDelay: "0.38s",
           }}
         >
-          No MBA required. No consultants. Just describe your idea and our AI
-          agent does the rest.
+          No MBA required. No consultants. Just describe your idea.
         </p>
 
         {/* Description */}
         <p
-          className="text-muted-foreground font-light mb-7"
+          className="animate-fade-up font-light mb-8"
           style={{
-            opacity: 0,
-            animation: FADE_UP,
-            animationDelay: "0.55s",
-            fontSize: "clamp(0.8rem, 1.3vw, 1rem)",
-            willChange: "transform",
+            fontSize: "clamp(0.78rem, 1.1vw, 0.93rem)",
+            color: "rgba(255,255,255,0.32)",
+            lineHeight: "1.8",
+            maxWidth: "500px",
+            animationDelay: "0.5s",
           }}
         >
-          PitchCraft is a 7-step AI agent built with Gemini 3 and MongoDB. It
-          validates your idea, researches the market, creates customer personas,
-          writes the full plan, builds financial projections, analyzes risks —
-          and saves everything to your dashboard.
+          A 7-step AI agent powered by Gemini 3 and MongoDB. Validates your idea,
+          researches the market, builds personas, writes the full plan,
+          projects financials, and analyzes risk — all under 60 seconds.
         </p>
-
-        {/* Optional inline idea input above CTA */}
-        <div
-          className="pointer-events-auto"
-          style={{ opacity: 0, animation: FADE_UP, animationDelay: "0.6s", marginBottom: 14 }}
-        >
-          <input
-            type="text"
-            value={localIdea}
-            onChange={(e) => setLocalIdea(e.target.value)}
-            placeholder="Got an idea? Type it here…"
-            onKeyDown={(e) => { if (e.key === "Enter") handleGenerate(); }}
-            style={{
-              width: "100%",
-              background: "hsla(240,15%,8%,0.9)",
-              border: "1px solid hsl(240,12%,22%)",
-              borderRadius: 10,
-              padding: "12px 16px",
-              color: "#fff",
-              fontSize: 14,
-              outline: "none",
-              fontFamily: "Sora, sans-serif",
-              transition: "border-color 0.2s ease",
-            }}
-            onFocus={(e) => { (e.currentTarget as HTMLInputElement).style.borderColor = "hsl(258,90%,66%)"; }}
-            onBlur={(e) => { (e.currentTarget as HTMLInputElement).style.borderColor = "hsl(240,12%,22%)"; }}
-          />
-        </div>
 
         {/* CTA buttons */}
         <div
-          className="pointer-events-auto flex flex-wrap gap-3"
-          style={{ opacity: 0, animation: FADE_UP, animationDelay: "0.7s" }}
+          className="animate-fade-up flex flex-wrap gap-3"
+          style={{ animationDelay: "0.62s" }}
         >
           <button
             id="hero-generate-btn"
-            onClick={handleGenerate}
-            className="text-white font-semibold px-8 py-4 text-sm rounded-sm active:scale-[0.97] cursor-pointer"
+            onClick={() => navigate("/generate")}
             style={{
-              backgroundColor: "hsl(258,90%,66%)",
-              transition: "all 0.2s ease",
+              background: "hsl(258,85%,64%)",
+              color: "#fff",
+              padding: "0.9rem 2rem",
+              borderRadius: "6px",
+              fontWeight: 600,
+              fontSize: "0.875rem",
+              border: "none",
+              cursor: "pointer",
+              transition: "box-shadow 0.25s ease, transform 0.15s ease",
+              fontFamily: "inherit",
             }}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLButtonElement).style.boxShadow =
-                "0 0 30px rgba(139,92,246,0.35)";
-              (e.currentTarget as HTMLButtonElement).style.filter =
-                "brightness(1.1)";
+                "0 0 32px rgba(139,92,246,0.5), 0 0 60px rgba(139,92,246,0.18)";
+              (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLButtonElement).style.boxShadow = "none";
-              (e.currentTarget as HTMLButtonElement).style.filter = "none";
+              (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
             }}
           >
-            Generate My Plan — Free
+            Generate My Plan — Free →
           </button>
 
           <button
-            className="text-foreground border border-white/15 px-8 py-4 text-sm rounded-sm active:scale-[0.97] cursor-pointer"
             style={{
-              backgroundColor: "rgba(255,255,255,0.10)",
-              transition: "all 0.2s ease",
+              background: "rgba(255,255,255,0.05)",
+              color: "rgba(255,255,255,0.8)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              padding: "0.9rem 2rem",
+              borderRadius: "6px",
+              fontWeight: 500,
+              fontSize: "0.875rem",
+              cursor: "pointer",
+              transition: "background 0.2s ease, border-color 0.2s ease",
+              fontFamily: "inherit",
             }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                "rgba(255,255,255,0.15)";
+              (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.09)";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.2)";
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                "rgba(255,255,255,0.10)";
+              (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.05)";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.1)";
             }}
           >
             See Example Plan
           </button>
         </div>
 
-        {/* Tech stack pills */}
+        {/* Tech pills */}
         <div
-          className="pointer-events-auto flex items-center gap-3 mt-6 flex-wrap"
-          style={{ opacity: 0, animation: FADE_UP, animationDelay: "0.85s" }}
+          className="animate-fade-up flex items-center flex-wrap gap-2 mt-7"
+          style={{ animationDelay: "0.78s" }}
         >
-          <span
-            className="text-xs"
-            style={{ color: "hsla(240,8%,60%,0.5)" }}
-          >
+          <span style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.72rem" }}>
             Powered by
           </span>
-          {TECH_PILLS.map(({ icon, label }) => (
+          {TECH_PILLS.map((label) => (
             <span
               key={label}
-              className="rounded-full px-3 py-1 text-xs"
               style={{
-                backgroundColor: "hsl(240,15%,10%)",
-                border: "1px solid hsl(240,12%,20%)",
-                color: "hsl(240,8%,60%)",
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.09)",
+                color: "rgba(255,255,255,0.38)",
+                fontSize: "0.7rem",
+                padding: "0.25rem 0.75rem",
+                borderRadius: "999px",
               }}
             >
-              {icon} {label}
+              {label}
             </span>
           ))}
         </div>
 
-        {/* Tagline */}
         <p
-          className="text-xs mt-3"
+          className="animate-fade-up mt-3"
           style={{
-            opacity: 0,
-            animation: FADE_UP,
-            animationDelay: "1.0s",
-            color: "hsla(240,8%,55%,0.3)",
+            color: "rgba(255,255,255,0.13)",
+            fontSize: "0.68rem",
+            animationDelay: "0.9s",
           }}
         >
           Rapid Agent Hackathon 2026 · MongoDB Partner Track
