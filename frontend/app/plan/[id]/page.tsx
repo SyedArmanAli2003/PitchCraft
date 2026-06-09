@@ -3,9 +3,12 @@ import type { BusinessPlan } from "@/lib/types"
 import PlanDisplay from "./PlanDisplay"
 
 // Server components can't use relative URLs for fetch.
-// In production on Vercel, VERCEL_URL is auto-set (e.g. "my-app.vercel.app").
-// In development, the backend runs on localhost:8000 via Next.js proxy.
+//   1. NEXT_PUBLIC_API_BASE — explicit backend URL (e.g. Cloud Run), if set.
+//   2. Production on Vercel: VERCEL_URL is auto-set (e.g. "my-app.vercel.app").
+//   3. Development: the backend runs on localhost:8000.
 function serverApiBase(): string {
+  const explicit = process.env.NEXT_PUBLIC_API_BASE
+  if (explicit) return explicit.replace(/\/+$/, "")
   if (process.env.NODE_ENV === "production") {
     const host = process.env.VERCEL_URL || process.env.FRONTEND_URL || ""
     return host ? `https://${host}` : ""

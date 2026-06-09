@@ -2,13 +2,21 @@
 
 # ✦ PitchCraft
 
-### Turn one sentence into an investor-ready business plan — with a Gemini 3 agent you can actually supervise.
+### Turn one sentence into an investor-ready business plan — with a 7-agent team you can actually supervise.
 
-**A multi-step AI agent that plans, researches, and reasons under human oversight — grounded in MongoDB, traced end-to-end in Arize Phoenix, and sealed with a tamper-evident audit chain.**
+**A multi-agent AI system (Google ADK) where seven named specialists hand off to each other — grounded in MongoDB over MCP, traced end-to-end in Arize Phoenix, and sealed with a tamper-evident audit chain.**
 
 Built for the [Google Cloud Rapid Agent Hackathon](https://rapid-agent.devpost.com/) · MongoDB & Arize tracks
 
-**🔗 Live demo:** _https://<your-app>.vercel.app_ (set after deploy) · **🎥 Demo video:** _<add YouTube/Loom link>_ · **💻 Repo:** [github.com/SyedArmanAli2003/PitchCraft](https://github.com/SyedArmanAli2003/PitchCraft)
+![Gemini 3](https://img.shields.io/badge/Gemini%203-Pro%20%2F%20Flash-7c3aed)
+![Google ADK](https://img.shields.io/badge/Google%20ADK-LlmAgent%20%2B%20SequentialAgent-4285F4)
+![MongoDB Atlas](https://img.shields.io/badge/MongoDB-Atlas%20%2B%20MCP-13aa52)
+![Arize Phoenix](https://img.shields.io/badge/Arize-Phoenix%20OpenInference-ff6a00)
+![Cloud Run](https://img.shields.io/badge/Google%20Cloud%20Run-ready-4285F4)
+![Next.js 14](https://img.shields.io/badge/Next.js-14-000000)
+![License: MIT](https://img.shields.io/badge/License-MIT-green)
+
+**🔗 Live demo:** _https://<your-app>.vercel.app_ (set after deploy) · **🎥 Demo video:** _<add YouTube/Loom link>_ · **💻 Repo:** [github.com/SyedArmanAli2003/PitchCraft](https://github.com/SyedArmanAli2003/PitchCraft) · **🧩 Architecture:** _/api/agent/manifest_
 
 </div>
 
@@ -18,7 +26,7 @@ Built for the [Google Cloud Rapid Agent Hackathon](https://rapid-agent.devpost.c
 
 Founders, students, and small teams have ideas constantly — but turning an idea into something you can *act on or pitch* (market sizing, personas, financials, risk) takes days of research and a blank-page tax most people never pay. Generic chatbots give you one wall of text with no structure, no grounding in real data, no record of how they reached their conclusions, and **no point at which a human can step in and steer.**
 
-PitchCraft is the opposite of a chatbot. It's an **agent that does the work** — a 7-step pipeline that decomposes the goal, calls tools, pauses for your approval at the decision point, and produces a structured, verifiable plan.
+PitchCraft is the opposite of a chatbot. It's a **team of agents that does the work** — seven named specialists (defined with Google's Agent Development Kit) that hand off to each other, call tools, pause for your approval at the decision point, and produce a structured, verifiable plan.
 
 > **One idea in → a full, structured, auditable business plan out — in about a minute.**
 
@@ -30,9 +38,10 @@ The challenge asks for an agent that **moves beyond chat**, **handles a multi-st
 
 | Hackathon goal | How PitchCraft delivers |
 | --- | --- |
-| **Move beyond chat** | A 7-step agent that *acts* — it queries a database, grounds its reasoning in stored market data, runs tools, and writes structured artifacts (not prose). |
-| **Multi-step mission, human in control** | The agent decomposes the job into 7 reasoning steps and **pauses after market research for a human approval gate** — approve, reject, or *redirect the strategy* before it commits to the full plan. |
-| **Partner power** | The agent consumes **MongoDB through a real Model Context Protocol server** — it's its memory, grounding layer, and tamper-evident ledger. **Arize Phoenix** gives full agent observability — every Gemini call and every step is traced. |
+| **Move beyond chat** | A **multi-agent system** that *acts* — seven specialists query a database, ground their reasoning in stored market data, run tools, and write structured artifacts (not prose). |
+| **Google Cloud Agent Builder (ADK)** | The 7 specialists are real **`google.adk.agents.LlmAgent`** objects composed into a **`SequentialAgent`** pipeline (`PitchCraftOrchestra`). The full topology is introspectable at **`/api/agent/manifest`**. |
+| **Multi-step mission, human in control** | The agents hand off through 7 reasoning stages and **pause after market research for a human approval gate** — approve, reject, or *redirect the strategy* before they commit to the full plan. |
+| **Partner power** | The agents consume **MongoDB through a real Model Context Protocol server** — their memory, grounding layer, and tamper-evident ledger. **Arize Phoenix** gives full observability — every Gemini call and every step is traced. |
 | **Built with Gemini 3** | Uses the current `google-genai` SDK with a **Gemini 3 → 2.5 cascade** (`gemini-3-pro-preview`, `gemini-3-flash-preview`, …) and forced-JSON output for reliable structured generation. |
 
 ### Judging-criteria fit
@@ -44,7 +53,50 @@ The challenge asks for an agent that **moves beyond chat**, **handles a multi-st
 
 ---
 
-## What the agent does — the 7 steps
+## Meet the agents (multi-agent architecture)
+
+Seven named specialists, defined with Google ADK and composed into a single
+`SequentialAgent` pipeline. They hand off in sequence, sharing a context object —
+the canonical ADK "agents that collaborate" pattern.
+
+```
+User idea
+    │
+    ▼
+PitchCraftOrchestra  (ADK SequentialAgent: "pitchcraft_orchestra")
+    │
+    ├─ ①  Strategy Analyst             (LlmAgent)            validate viability
+    ├─ ②  Market Intelligence Analyst  (LlmAgent + MongoDB MCP)  ← MongoDB
+    │        ⏸  HUMAN APPROVAL GATE — approve / reject / redirect
+    ├─ ③  Customer Insights Specialist (LlmAgent)            3 personas
+    ├─ ④  Business Architect           (LlmAgent)            full plan
+    ├─ ⑤  Financial Modeller           (LlmAgent + MongoDB MCP)  ← MongoDB
+    ├─ ⑥  Risk & Compliance Officer    (LlmAgent)            risk + SWOT
+    └─ ⑦  Chief of Staff               (compile/persist)     ← MongoDB + SHA-256 audit
+    │
+    ▼
+Plan saved + shareable + audit chain sealed
+```
+
+| # | Agent (`adk_name`) | Role | Tools |
+| - | --- | --- | --- |
+| 1 | **Strategy Analyst** (`strategy_analyst`) | Validates idea viability | Gemini reasoning |
+| 2 | **Market Intelligence Analyst** (`market_intelligence_analyst`) | Researches the market | **MongoDB MCP** `get_industry_market_data`, `search_similar_plans` |
+| 3 | **Customer Insights Specialist** (`customer_insights_specialist`) | Builds personas | Gemini reasoning |
+| 4 | **Business Architect** (`business_architect`) | Writes the plan | Gemini reasoning |
+| 5 | **Financial Modeller** (`financial_modeller`) | 3-yr financials | **MongoDB MCP** `get_market_benchmarks` |
+| 6 | **Risk & Compliance Officer** (`risk_compliance_officer`) | Risk + SWOT | Gemini reasoning |
+| 7 | **Chief of Staff** (`chief_of_staff`) | Compile, persist, seal | `mongodb_persist`, `sha256_audit_chain` |
+
+> **Honest execution note:** ADK defines the agents and the pipeline topology;
+> the Gemini calls run through PitchCraft's resilient executor (multi-key
+> rotation + 4-tier cascade + forced-JSON + Arize tracing) so a live demo never
+> dies on one model's quota. Each agent's ADK `instruction` is the system prompt
+> that drives its call. See the live wiring at **`GET /api/agent/manifest`**.
+
+---
+
+## What the agents do — the 7 steps
 
 ```
 Idea ─▶ ① Validate ─▶ ② Market Research ─▶ ⏸ HUMAN APPROVAL GATE ─▶ ③ Personas
@@ -126,11 +178,11 @@ Inspect or invoke the tools over HTTP too: `GET /api/mcp/tools`, `GET /api/mcp/d
                                     └──────────┘  └───────────┘  └─────────────┘
 ```
 
-**Backend** (`backend/`): `index.py` (FastAPI app & routes) · `agent.py` (the 7-step agent) · `mcp_server.py` (the MongoDB MCP server) · `mongodb.py` (persistence, seed data, tools, audit storage) · `audit.py` (SHA-256 chain) · `observability.py` (Arize Phoenix) · `models.py` (Pydantic schemas).
+**Backend** (`backend/`): `index.py` (FastAPI app & routes) · `agent.py` (the 7 ADK specialists + `PitchCraftOrchestra`) · `mcp_server.py` (the MongoDB MCP server) · `mongodb.py` (persistence, seed data, tools, audit storage) · `audit.py` (SHA-256 chain) · `observability.py` (Arize Phoenix) · `models.py` (Pydantic schemas) · `Dockerfile` + `cloudbuild.yaml` (Cloud Run).
 
 **Frontend** (`frontend/`): App-Router Next.js — `app/generate` (the agent runner + gates), `app/plan/[id]` (the plan + audit trail), `components/StepCard.tsx`, particle hero.
 
-**Tech:** Gemini 3 (`google-genai`) · MongoDB Atlas (`pymongo`, TLS via `certifi`) · Model Context Protocol (`mcp`) · Arize Phoenix (`arize-phoenix-otel` + `openinference-instrumentation-google-genai`) · FastAPI + SSE · Next.js 14 + Tailwind + Three.js.
+**Tech:** Gemini 3 (`google-genai`) · **Google ADK** (`google-adk`: `LlmAgent` + `SequentialAgent`) · MongoDB Atlas (`pymongo`, TLS via `certifi`) · Model Context Protocol (`mcp`) · Arize Phoenix (`arize-phoenix-otel` + `openinference-instrumentation-google-genai`) · FastAPI + SSE · Next.js 14 + Tailwind + Three.js.
 
 ---
 
@@ -146,7 +198,8 @@ Inspect or invoke the tools over HTTP too: `GET /api/mcp/tools`, `GET /api/mcp/d
 | `POST` | `/api/approval/{id}/decide` | Record a reviewer decision (`approved`, optional `direction_override`). |
 | `GET` | `/api/share/{token}` | Public read-only plan by share token. |
 | `GET` | `/api/models` | Available Gemini tiers (with `available` flag). |
-| `GET` | `/api/agent/info` | Honest agent manifest (framework, models, integrations). |
+| `GET` | `/api/agent/manifest` | **Full multi-agent architecture** — the 7 ADK specialists, their tools, the pipeline, MongoDB & observability wiring. Built from the live agent objects. |
+| `GET` | `/api/agent/info` | Agent summary (ADK framework, model cascade, integrations). |
 | `GET` | `/api/observability` | Arize Phoenix tracing status. |
 | `GET`·`POST` | `/api/mcp/tools` · `/api/mcp/demo` · `/api/mcp/call` | Real MCP tool manifest, a live protocol demo, and direct tool invocation. |
 | `GET` | `/api/stats` · `/api/plans` · `/api/health` | Counts, recent plans, health. |
@@ -202,6 +255,23 @@ Then:
 
 ---
 
+## Deploy to Google Cloud Run
+
+The backend ships **Cloud Run-ready** — [`backend/Dockerfile`](backend/Dockerfile) (binds `index:app` to `$PORT`) and [`backend/cloudbuild.yaml`](backend/cloudbuild.yaml) (build → push → deploy). Long-running SSE + the approval gate fit naturally on Cloud Run's request model (no 60s serverless cap).
+
+```bash
+# One-shot build + deploy to Cloud Run (us-central1):
+gcloud builds submit --config backend/cloudbuild.yaml backend
+
+# Set runtime env on the service (or wire Secret Manager):
+gcloud run services update pitchcraft-backend --region=us-central1 \
+  --set-env-vars MONGODB_URI=...,GEMINI_API_KEY_1=...,PHOENIX_API_KEY=...
+```
+
+Then point the frontend at it: set **`NEXT_PUBLIC_API_BASE=https://pitchcraft-backend-xxxx.run.app`** in the Vercel (frontend) project and redeploy. The frontend talks to Cloud Run directly; CORS already allows `*.vercel.app`.
+
+---
+
 ## Environment variables
 
 | Var | Required | Purpose |
@@ -217,6 +287,8 @@ Then:
 | `SKIP_APPROVAL` | – | `true` auto-approves the gate after 3s. |
 | `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW` | – | Per-IP `/api/generate` limit (default 3 req / 60 s). |
 | `FRONTEND_URL` | – | Your deployed URL, for server-side fetches + CORS. |
+| `NEXT_PUBLIC_API_BASE` | – | **Frontend** build-time var. Absolute backend URL for split deploys (e.g. Vercel + Cloud Run). Blank = same-origin / dev proxy. |
+| `USE_OFFICIAL_MONGODB_MCP` | – | `true` also tries the official `@modelcontextprotocol/server-mongodb` over stdio (needs `npx`); falls back automatically. |
 
 ---
 
@@ -224,6 +296,8 @@ Then:
 
 This build went through a full QA pass. Fixed and **verified live** in this repo:
 
+- ✅ **Multi-agent ADK architecture.** Seven real `LlmAgent` specialists composed into a `SequentialAgent` pipeline; `/api/agent/manifest` returns all 7 with their tools. A full generation completes **7/7 steps** with each step tagged by its specialist, and the **SHA-256 audit chain still verifies `True`** against the stored plan.
+- ✅ **MongoDB MCP grounding is explicit.** The Market Intelligence Analyst calls the MongoDB MCP tools before reasoning and records a `mongodb_sources` block on its output (`data_grounded: true`) — verified persisted on the stored plan.
 - ✅ **Gemini 3 actually runs now.** The previous model IDs (`gemini-3.0-pro/flash`) returned HTTP 404 and silently fell back to 2.5; corrected to `gemini-3-pro-preview` / `gemini-3-flash-preview` and confirmed with a live JSON-mode call.
 - ✅ **Approval gate is wired end-to-end.** The frontend previously ignored the `approval_gate` event, so every run hung until timeout. Now there's a full approve / reject / redirect modal, plus robust buffered SSE parsing.
 - ✅ **Migrated to the current `google-genai` SDK** (the legacy `google-generativeai` is EOL) with forced-JSON output.
@@ -238,8 +312,9 @@ This build went through a full QA pass. Fixed and **verified live** in this repo
 
 ## Roadmap
 
-- **MongoDB's hosted MCP server**: also connect the agent to MongoDB's official `mongodb-mcp-server` (raw `find`/`aggregate`) alongside PitchCraft's domain MCP server.
-- **Atlas Vector Search**: embed past plans for true semantic "similar plans" grounding.
+- **MongoDB's hosted MCP server**: an opt-in path to the official `@modelcontextprotocol/server-mongodb` over stdio already exists (`USE_OFFICIAL_MONGODB_MCP=true`, needs `npx`); next is mapping the domain tools onto its raw `find`/`aggregate`.
+- **Atlas Vector Search**: embed past plans for true semantic "similar plans" grounding (today similarity uses indexed text/regex queries).
+- **Live Cloud Run deployment**: the `Dockerfile` + `cloudbuild.yaml` are ready; ship a public Cloud Run URL.
 - **Phoenix evals**: add automated LLM-as-judge scoring of plan quality on top of the traces.
 - **Export**: one-click PDF / pitch-deck export (print-to-PDF exists today).
 
@@ -250,5 +325,5 @@ This build went through a full QA pass. Fixed and **verified live** in this repo
 MIT — see [LICENSE](LICENSE).
 
 <div align="center">
-<sub>Built with Gemini 3 · MongoDB · Arize Phoenix — for the Google Cloud Rapid Agent Hackathon.</sub>
+<sub>Built with Google ADK · Gemini 3 · MongoDB · Arize Phoenix — for the Google Cloud Rapid Agent Hackathon.</sub>
 </div>

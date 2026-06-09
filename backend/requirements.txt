@@ -10,8 +10,18 @@ dnspython==2.6.1
 # --- Model Context Protocol: real MongoDB MCP server (backend/mcp_server.py) ---
 mcp>=1.2.0
 
+# --- Google Cloud Agent Development Kit (Compliance: Google Cloud Agent Builder) ---
+# The 7 specialist agents + the sequential pipeline are defined with ADK
+# (LlmAgent / SequentialAgent). Guarded import: if absent, the orchestrator
+# still runs with plain Python agent classes.
+google-adk>=1.0.0
+
 # --- Arize Phoenix observability (Arize partner track) ---
 # Tracing is optional & fully guarded: if these are absent the app still runs.
+# OpenTelemetry is pinned to a window that satisfies BOTH google-adk
+# (opentelemetry-api/sdk <=1.41.1) and Phoenix, so pip resolves cleanly.
+opentelemetry-api>=1.36,<=1.41.1
+opentelemetry-sdk>=1.36,<=1.41.1
+opentelemetry-exporter-otlp>=1.27.0,<=1.41.1
 arize-phoenix-otel>=0.6.0
 openinference-instrumentation-google-genai>=0.1.0
-opentelemetry-exporter-otlp>=1.27.0

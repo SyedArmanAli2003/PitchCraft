@@ -1,29 +1,34 @@
-// Production (Vercel): same domain — use relative URLs client-side, absolute server-side
-// Development: proxy via Next.js rewrites to localhost:8000
+// API base resolution, in priority order:
+//   1. NEXT_PUBLIC_API_BASE  — explicit override (client + server, dev + prod).
+//      Use this for SPLIT deployments, e.g. frontend on Vercel + backend on
+//      Google Cloud Run:  NEXT_PUBLIC_API_BASE=https://pitchcraft-xxxx.run.app
+//   2. Production server-side — absolute URL from VERCEL_URL / FRONTEND_URL.
+//   3. Otherwise relative "" — same-origin in prod, Next.js rewrites proxy
+//      /api/* -> localhost:8000 in development.
 
-function getApiBase(): string {
-  // Server-side in production: need absolute URL; use VERCEL_URL auto-set by Vercel
+function apiBase(): string {
+  const explicit = process.env.NEXT_PUBLIC_API_BASE
+  if (explicit) return explicit.replace(/\/+$/, "")
+
   if (typeof window === "undefined" && process.env.NODE_ENV === "production") {
     const host = process.env.VERCEL_URL || process.env.FRONTEND_URL || ""
     return host ? `https://${host}` : ""
   }
-  // Client-side in production: relative URLs work (same domain)
-  if (process.env.NODE_ENV === "production") return ""
-  // Development: Next.js rewrites proxy /api/* → localhost:8000
   return ""
 }
 
 export const API = {
-  generate:       "/api/generate",
-  plan:           (id: string)    => `${getApiBase()}/api/plan/${id}`,
-  share:          (token: string) => `${getApiBase()}/api/share/${token}`,
-  audit:          (id: string)    => `/api/plan/${id}/audit`,
-  approvalDecide: (id: string)    => `/api/approval/${id}/decide`,
-  plans:          "/api/plans",
-  stats:          "/api/stats",
-  health:         "/api/health",
-  models:         "/api/models",
-  observability:  "/api/observability",
+  generate:       `${apiBase()}/api/generate`,
+  plan:           (id: string)    => `${apiBase()}/api/plan/${id}`,
+  share:          (token: string) => `${apiBase()}/api/share/${token}`,
+  audit:          (id: string)    => `${apiBase()}/api/plan/${id}/audit`,
+  approvalDecide: (id: string)    => `${apiBase()}/api/approval/${id}/decide`,
+  plans:          `${apiBase()}/api/plans`,
+  stats:          `${apiBase()}/api/stats`,
+  health:         `${apiBase()}/api/health`,
+  models:         `${apiBase()}/api/models`,
+  manifest:       `${apiBase()}/api/agent/manifest`,
+  observability:  `${apiBase()}/api/observability`,
 }
 
 export type ModelKey =

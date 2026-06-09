@@ -22,7 +22,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from models import IdeaRequest, ApprovalDecision
-from agent import run_pitchcraft_agent, get_models_list, _load_api_keys
+from agent import run_pitchcraft_agent, get_models_list, _load_api_keys, get_agent_manifest
 from mongodb import (
     init_db, save_plan, get_plan, get_plan_by_token, get_plan_count, get_plans_today,
     get_recent_plans, get_audit_chain, get_approval_request, resolve_approval, _get_db,
@@ -117,21 +117,38 @@ async def list_models():
 
 @app.get("/api/agent/info")
 async def agent_info():
-    """Honest description of the agent for hackathon reviewers. NOTE: this is a
-    custom FastAPI orchestration, NOT Google Cloud Agent Builder/ADK — we do not
-    claim a framework we don't use."""
-    from agent import MODEL_CONFIGS, CASCADE_ORDER
+    """Description of the agent for hackathon reviewers.
+
+    The 7 specialists and the pipeline topology are defined with Google ADK
+    (LlmAgent + SequentialAgent). The Gemini calls themselves run through a
+    resilient multi-key, 4-tier cascade with forced-JSON output so a live demo
+    never dies on one model's quota — we state this hybrid honestly."""
+    from agent import MODEL_CONFIGS, CASCADE_ORDER, _ADK_AVAILABLE
     return {
         "agent": "PitchCraft",
-        "framework": "Custom FastAPI agent orchestration (async, SSE-streamed)",
+        "framework": "Google ADK (LlmAgent + SequentialAgent)" if _ADK_AVAILABLE
+                     else "PitchCraft orchestrator (ADK not installed in this runtime)",
+        "adk_available": _ADK_AVAILABLE,
+        "architecture": "7 named specialist agents handing off in a sequential pipeline",
+        "execution": "ADK defines the agents & topology; Gemini calls run through a "
+                     "resilient multi-key 4-tier cascade with forced-JSON + Arize tracing",
         "model_provider": "Google Gemini 3 via the google-genai SDK",
         "model_cascade": [MODEL_CONFIGS[k]["model_id"] for k in CASCADE_ORDER],
-        "orchestration": "7-step sequential pipeline with a human-in-the-loop approval gate",
+        "human_in_the_loop": "approval gate after Step 2 (market research)",
         "mcp_integration": "PitchCraft MongoDB MCP server (Model Context Protocol)",
         "observability": "Arize Phoenix (OpenInference auto-instrumentation)",
         "trust": "SHA-256 tamper-evident audit chain per plan",
+        "manifest": "/api/agent/manifest",
         "hackathon": "Google Cloud Rapid Agent Hackathon 2026 — MongoDB & Arize tracks",
     }
+
+
+@app.get("/api/agent/manifest")
+async def agent_manifest():
+    """Full multi-agent architecture manifest — the 7 named specialists, their
+    ADK agent names, declared tools, the MongoDB integration and observability.
+    Built from the same agent objects that actually run, so it can't drift."""
+    return get_agent_manifest()
 
 
 @app.get("/api/observability")
