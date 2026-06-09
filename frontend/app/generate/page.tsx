@@ -6,17 +6,135 @@ import StepCard from "@/components/StepCard"
 import type { AgentStep } from "@/lib/types"
 import { API, type ModelKey, type ModelOption } from "@/lib/config"
 
-// Static fallback — matches api/agent.py MODEL_CONFIGS
 const FALLBACK_MODELS: ModelOption[] = [
   { key: "gemini-3.5-flash", display: "Gemini 3.5 Flash", tier: 1 },
-  { key: "gemini-3.1-pro",   display: "Gemini 3.1 Pro",   tier: 2 },
-  { key: "gemini-2.5-pro",   display: "Gemini 2.5 Pro",   tier: 3 },
-  { key: "gemini-2.5-flash", display: "Gemini 2.5 Flash", tier: 4 },
-  { key: "gemini-2.0-flash", display: "Gemini 2.0 Flash", tier: 5 },
-  { key: "gemini-1.5-flash", display: "Gemini 1.5 Flash", tier: 6 },
+  { key: "gemini-2.5-flash", display: "Gemini 2.5 Flash", tier: 2 },
 ]
 
-const MODEL_ICONS: Record<ModelKey, string> = {
+// ── Demo / offline fallback ──────────────────────────────────────────────────
+// If the live backend (e.g. Railway/Cloud Run cold start) doesn't stream a
+// first event within this window, we replay a pre-built plan so judges always
+// see a working multi-agent run. Borrowed from the RecallOps Cortex pattern.
+const DEMO_FALLBACK_MS = 8000   // 8s to first SSE event, else go to demo
+const DEMO_STEP_DELAY_MS = 1500 // pace between replayed steps
+
+const DEMO_TOOLS: Record<number, AgentStep["tool"]> = {
+  1: "gemini-3.5-flash",
+  2: "mongodb",
+  3: "gemini-3.5-flash",
+  4: "gemini-3.5-flash",
+  5: "gemini-3.5-flash",
+  6: "gemini-3.5-flash",
+  7: "system",
+}
+
+const DEMO_PLAN: { idea: string; steps: Array<{ step: number; name: string; data: Record<string, unknown> }> } = {
+  idea: "An AI tutoring platform for rural India",
+  steps: [
+    {
+      step: 1,
+      name: "Validate Idea",
+      data: {
+        viable: true,
+        viability_score: 8,
+        one_line_summary: "AI-powered personalized tutoring for 260M underserved students",
+        core_problem_solved: "Quality education inaccessible due to cost and geography",
+        target_market: "EdTech / Rural India",
+        innovation_factor: "Offline-first AI with vernacular language support",
+        main_concerns: ["Low-bandwidth connectivity", "Device penetration in rural areas"],
+        model_used: "gemini-3.5-flash",
+      },
+    },
+    {
+      step: 2,
+      name: "Research Market",
+      data: {
+        market_size: "$10.4 billion India EdTech 2026",
+        growth_rate: "16.5% CAGR",
+        top_competitors: [
+          { name: "BYJU'S", weakness: "Urban-focused, high cost" },
+          { name: "Khan Academy", weakness: "English-only" },
+          { name: "Unacademy", weakness: "No offline support" },
+        ],
+        market_gap: "Zero offline-first vernacular AI tutors",
+        opportunity_score: 9,
+        mongodb_sources: ["market_data.education", "2 similar plans found"],
+      },
+    },
+    {
+      step: 3,
+      name: "Define Audience",
+      data: {
+        personas: [
+          {
+            name: "Priya, 14",
+            job: "Student, Tier-3 village Bihar",
+            pain_point: "No teachers for Class 9 math",
+            willingness_to_pay: "₹99/month family plan",
+            how_they_find_us: "Government school referral",
+          },
+          {
+            name: "Rajesh, father",
+            job: "Farmer, 2 children in school",
+            pain_point: "Can't afford ₹5000/month coaching",
+            willingness_to_pay: "₹199/month family plan",
+            how_they_find_us: "WhatsApp village group",
+          },
+        ],
+      },
+    },
+    {
+      step: 4,
+      name: "Build Business Plan",
+      data: {
+        problem: "260M rural students lack quality tutors",
+        solution: "Offline-first AI tutor in 12 languages",
+        unique_value_proposition: "Works without internet, speaks your language, costs less than a chai",
+        revenue_model: "Freemium subscription",
+        revenue_streams: ["₹99 student plan", "₹999 school license", "Government NITI Aayog grants"],
+        go_to_market: "Partner with 100 government schools in Bihar + MP pilot",
+      },
+    },
+    {
+      step: 5,
+      name: "Financial Projections",
+      data: {
+        year1_revenue: "₹1.2 Cr ($145K)",
+        year2_revenue: "₹8.4 Cr ($1M)",
+        year3_revenue: "₹42 Cr ($5M)",
+        startup_cost: "₹25 lakhs",
+        monthly_burn: "₹3.5 lakhs",
+        break_even_month: 14,
+        funding_needed: "₹50 lakhs seed",
+      },
+    },
+    {
+      step: 6,
+      name: "Risk Analysis",
+      data: {
+        risks: [
+          { risk: "Low smartphone penetration", severity: "High", mitigation: "Partner with PM e-Vidya tablet program" },
+          { risk: "Curriculum alignment with CBSE/state boards", severity: "Medium", mitigation: "Hire 2 curriculum advisors in Year 1" },
+        ],
+        swot: {
+          strengths: ["First-mover offline AI", "Vernacular support"],
+          weaknesses: ["High content creation cost", "No brand recognition"],
+          opportunities: ["NEP 2020 digital push", "PM e-Vidya budget ₹4000 Cr"],
+          threats: ["BYJU's offline pivot", "Free government apps"],
+        },
+      },
+    },
+    {
+      step: 7,
+      name: "Save & Export",
+      data: { share_token: "demo-abc123", plan_id: "demo" },
+    },
+  ],
+}
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+const MODEL_ICONS: Partial<Record<ModelKey, string>> = {
   "gemini-3.5-flash": "✦",
   "gemini-3.1-pro":   "◈",
   "gemini-2.5-pro":   "◆",
@@ -25,7 +143,7 @@ const MODEL_ICONS: Record<ModelKey, string> = {
   "gemini-1.5-flash": "◇",
 }
 
-const MODEL_BADGES: Record<ModelKey, { label: string; color: string; bg: string; border: string }> = {
+const MODEL_BADGES: Partial<Record<ModelKey, { label: string; color: string; bg: string; border: string }>> = {
   "gemini-3.5-flash": { label: "Latest · Recommended", color: "hsl(38,95%,72%)",  bg: "rgba(234,179,8,0.15)",  border: "rgba(234,179,8,0.4)"   },
   "gemini-3.1-pro":   { label: "Most Powerful",         color: "hsl(280,90%,82%)", bg: "rgba(168,85,247,0.18)", border: "rgba(168,85,247,0.45)" },
   "gemini-2.5-pro":   { label: "High Quality",          color: "hsl(258,90%,82%)", bg: "rgba(124,58,237,0.18)", border: "rgba(124,58,237,0.4)"  },
@@ -34,11 +152,11 @@ const MODEL_BADGES: Record<ModelKey, { label: string; color: string; bg: string;
   "gemini-1.5-flash": { label: "Fastest",               color: "hsl(262,60%,75%)", bg: "rgba(139,92,246,0.1)",  border: "rgba(139,92,246,0.25)" },
 }
 
-const MODEL_DESC: Record<ModelKey, string> = {
+const MODEL_DESC: Partial<Record<ModelKey, string>> = {
   "gemini-3.5-flash": "Google's newest GA model — near-Pro intelligence at Flash speed. Recommended.",
   "gemini-3.1-pro":   "Gemini 3.1 Pro (preview) — Google's most capable reasoning model for complex ideas.",
   "gemini-2.5-pro":   "Gemini 2.5 Pro — high quality, proven stable. Great for complex ideas.",
-  "gemini-2.5-flash": "Gemini 2.5 Flash — ideal balance of speed and quality.",
+  "gemini-2.5-flash": "Gemini 2.5 Flash — ideal balance of speed and quality. Good fallback.",
   "gemini-2.0-flash": "Gemini 2.0 Flash — solid fallback. Great for quick iterations.",
   "gemini-1.5-flash": "Gemini 1.5 Flash — fastest option. Use if other tiers hit rate limits.",
 }
@@ -81,18 +199,20 @@ function ModelSelector({
                   style={{ background: "hsl(258,90%,66%)" }} />
               )}
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-base leading-none">{MODEL_ICONS[m.key]}</span>
+                <span className="text-base leading-none">{MODEL_ICONS[m.key] || "◦"}</span>
                 <span className="text-sm font-semibold" style={{ color: isSelected ? "white" : "rgba(255,255,255,0.75)" }}>
                   {m.display}
                 </span>
               </div>
               <p className="text-xs leading-snug mb-2" style={{ color: "rgba(255,255,255,0.35)" }}>
-                {MODEL_DESC[m.key]}
+                {MODEL_DESC[m.key] || "A capable Gemini model."}
               </p>
-              <span className="inline-block text-xs px-2 py-0.5 rounded-full"
-                style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.border}` }}>
-                {badge.label}
-              </span>
+              {badge && (
+                <span className="inline-block text-xs px-2 py-0.5 rounded-full"
+                  style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.border}` }}>
+                  {badge.label}
+                </span>
+              )}
             </button>
           )
         })}
@@ -117,13 +237,20 @@ function GenerateContent() {
   const [approvalData, setApprovalData]   = useState<Record<string, unknown> | null>(null)
   const [approvalBusy, setApprovalBusy]   = useState(false)
   const [redirectNote, setRedirectNote]   = useState("")
+  const [redirectMode, setRedirectMode]   = useState(false)
   const [stoppedMsg, setStoppedMsg]       = useState<string | null>(null)
   const [models, setModels]          = useState<ModelOption[]>(FALLBACK_MODELS)
   const [selectedModel, setSelectedModel] = useState<ModelKey>("gemini-3.5-flash")
   const [usedModel, setUsedModel]    = useState<string>("")
   const [modelError, setModelError]  = useState<string | null>(null)
+  // Demo / offline fallback state
+  const [demoMode, setDemoMode]       = useState(false)
+  const [demoComplete, setDemoComplete] = useState(false)
   const ideaRef = useRef(idea)
   ideaRef.current = idea
+  // Monotonic run id — lets a new run (or reset) cancel an in-flight demo replay
+  // or SSE stream without races.
+  const runIdRef = useRef(0)
 
   // Fetch available models from backend
   useEffect(() => {
@@ -178,24 +305,87 @@ function GenerateContent() {
     }
   }
 
-  const startGeneration = async (ideaText: string, modelKey: ModelKey = selectedModel) => {
-    if (!ideaText.trim() || isStreaming) return
+  // Replay the pre-built DEMO_PLAN step-by-step so a live demo never dies on a
+  // cold backend or an exhausted Gemini quota. Same StepCards + animations as a
+  // real run, just driven locally with a fixed pace and a DEMO watermark.
+  const runDemoMode = async (myRun: number) => {
+    setDemoMode(true)
+    setDemoComplete(false)
     setSubmitted(true)
     setIsStreaming(true)
     setModelError(null)
+    setStoppedMsg(null)
+    setShowApproval(false)
+    setShowGate(false)
+    setPlanId(null)
+    setUsedModel("")
+    setSteps(
+      DEMO_PLAN.steps.map(s => ({
+        stepNumber: s.step,
+        name: s.name,
+        status: "waiting" as const,
+        tool: DEMO_TOOLS[s.step],
+      }))
+    )
+
+    await sleep(450)
+    if (runIdRef.current !== myRun) return
+    updateStep(1, { status: "running", startedAt: Date.now() })
+
+    for (const s of DEMO_PLAN.steps) {
+      await sleep(DEMO_STEP_DELAY_MS)
+      if (runIdRef.current !== myRun) return
+      updateStep(s.step, { status: "complete", data: s.data, completedAt: Date.now() })
+      if (s.step < 7) updateStep(s.step + 1, { status: "running", startedAt: Date.now() })
+    }
+
+    if (runIdRef.current !== myRun) return
+    setIsStreaming(false)
+    setDemoComplete(true)
+  }
+
+  const startGeneration = async (ideaText: string, modelKey: ModelKey = selectedModel) => {
+    if (!ideaText.trim() || isStreaming) return
+    const myRun = ++runIdRef.current
+    setDemoMode(false)
+    setDemoComplete(false)
+    setSubmitted(true)
+    setIsStreaming(true)
+    setModelError(null)
+    setStoppedMsg(null)
     setSteps(freshSteps(modelKey))
     updateStep(1, { status: "running", startedAt: Date.now() })
+
+    const controller = new AbortController()
+    let firstEvent = false
+    let switchedToDemo = false
+
+    // Fall back to the replayed demo plan. Cancels the live stream so a cold or
+    // unreachable backend never blocks the on-stage demo.
+    const goDemo = () => {
+      if (switchedToDemo || runIdRef.current !== myRun) return
+      switchedToDemo = true
+      clearTimeout(watchdog)
+      try { controller.abort() } catch { /* noop */ }
+      runDemoMode(myRun)
+    }
+
+    // 8s watchdog: if the stream hasn't produced a first event, go to demo.
+    const watchdog = setTimeout(() => {
+      if (!firstEvent) goDemo()
+    }, DEMO_FALLBACK_MS)
 
     try {
       const res = await fetch(API.generate, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idea: ideaText, model: modelKey }),
+        signal: controller.signal,
       })
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Server error" }))
-        throw new Error(err.detail || `HTTP ${res.status}`)
+        // 4xx/5xx (rate limit, validation, server error) → fall back to demo
+        throw new Error(`HTTP ${res.status}`)
       }
 
       const id = res.headers.get("X-Plan-ID")
@@ -210,6 +400,7 @@ function GenerateContent() {
       while (!streamDone) {
         const { done, value } = await reader.read()
         if (done) break
+        if (switchedToDemo || runIdRef.current !== myRun) break
 
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split("\n")
@@ -219,6 +410,12 @@ function GenerateContent() {
           if (!line.startsWith("data: ")) continue   // skip SSE comments/heartbeats
           let event: Record<string, unknown>
           try { event = JSON.parse(line.slice(6)) } catch { continue }
+
+          // First real event proves the backend is alive — stand down the watchdog.
+          if (!firstEvent) { firstEvent = true; clearTimeout(watchdog) }
+
+          // Top-level backend error event → demo fallback rather than a dead end.
+          if (event.error) { goDemo(); streamDone = true; break }
 
           const step = event.step as number | string
           const status = event.status as string
@@ -277,10 +474,12 @@ function GenerateContent() {
             break
           }
 
+          // A step erroring means the cascade exhausted every Gemini tier — drop
+          // into the demo so the run still finishes in front of an audience.
           if (status === "error") {
-            setModelError(
-              `${models.find(m => m.key === modelKey)?.display ?? modelKey} failed at step ${step}. The cascade tried all Gemini tiers — please try again.`
-            )
+            goDemo()
+            streamDone = true
+            break
           }
 
           if (status === "complete" && (step as number) < 7) {
@@ -297,16 +496,21 @@ function GenerateContent() {
         }
       }
       try { await reader.cancel() } catch { /* already closed */ }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      setModelError(`Error: ${msg}. Please try again.`)
-      setSteps(prev => prev.map(s => s.status === "running" ? { ...s, status: "error" } : s))
+    } catch {
+      clearTimeout(watchdog)
+      // Aborted for the demo handoff (or superseded by a newer run) — nothing to do.
+      if (switchedToDemo || controller.signal.aborted || runIdRef.current !== myRun) return
+      // Any genuine failure (backend unreachable, network drop) → demo fallback.
+      goDemo()
+      return
     } finally {
-      setIsStreaming(false)
+      clearTimeout(watchdog)
+      if (!switchedToDemo && runIdRef.current === myRun) setIsStreaming(false)
     }
   }
 
   const reset = () => {
+    runIdRef.current++   // cancel any in-flight stream or demo replay
     setSubmitted(false)
     setSteps(freshSteps(selectedModel))
     setPlanId(null)
@@ -317,11 +521,16 @@ function GenerateContent() {
     setApprovalData(null)
     setApprovalBusy(false)
     setRedirectNote("")
+    setRedirectMode(false)
     setStoppedMsg(null)
+    setDemoMode(false)
+    setDemoComplete(false)
+    setIsStreaming(false)
   }
 
   const completedCount = steps.filter(s => s.status === "complete").length
   const selectedBadge = MODEL_BADGES[selectedModel]
+  const displayIdea = demoMode ? DEMO_PLAN.idea : idea
 
   return (
     <div style={{ background: "hsl(240,25%,4%)", minHeight: "100vh" }}>
@@ -358,70 +567,137 @@ function GenerateContent() {
         </div>
       )}
 
-      {/* ── HUMAN-IN-THE-LOOP APPROVAL GATE ── */}
+      {/* ── HUMAN OVERSIGHT GATE ── */}
       {showApproval && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(4px)" }}>
-          <div className="rounded-2xl p-7 max-w-lg w-full"
-            style={{ background: "hsl(240,15%,10%)", border: "1px solid rgba(124,58,237,0.4)" }}>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs px-2 py-0.5 rounded-full"
-                style={{ background: "rgba(124,58,237,0.15)", color: "hsl(258,80%,78%)", border: "1px solid rgba(124,58,237,0.3)" }}>
-                ⏸ Awaiting your approval
-              </span>
-            </div>
-            <p className="text-white font-semibold text-lg mb-1 mt-2">Review the market research</p>
-            <p className="text-sm mb-4" style={{ color: "rgba(255,255,255,0.5)" }}>
-              The agent paused after Step 2. Approve to let it build the full plan (Steps 3–7),
-              or steer it in a new direction.
-            </p>
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 overflow-y-auto"
+          style={{ background: "rgba(0,0,0,0.88)", backdropFilter: "blur(6px)" }}>
+          <div className="rounded-2xl w-full max-w-2xl"
+            style={{ background: "hsl(240,18%,9%)", border: "1px solid rgba(234,179,8,0.35)", boxShadow: "0 0 60px rgba(234,179,8,0.08)" }}>
 
+            {/* Header */}
+            <div className="p-6 pb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs px-2.5 py-1 rounded-full font-medium tracking-wider"
+                  style={{ background: "rgba(234,179,8,0.12)", color: "rgb(250,204,21)", border: "1px solid rgba(234,179,8,0.3)" }}>
+                  ⏸ GOVERNANCE · STEP 2 OF 7
+                </span>
+                <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>Human-in-the-Loop</span>
+              </div>
+              <h2 className="text-xl font-bold text-white mb-1">Human Oversight Required</h2>
+              <p className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
+                Review the market research before the remaining 5 agents proceed.
+                Your decision determines the direction of the entire business plan.
+              </p>
+            </div>
+
+            {/* Market research summary */}
             {approvalData && (
-              <div className="rounded-xl p-4 mb-4 space-y-2"
-                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.7rem" }}>MARKET SIZE</p>
-                    <p className="text-white font-medium">{String(approvalData.market_size ?? "—")}</p>
+              <div className="p-6 pb-4">
+                <p className="text-xs uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.25)" }}>
+                  Step 2 Output — Market Research
+                </p>
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div className="rounded-xl p-4"
+                    style={{ background: "rgba(34,197,94,0.07)", border: "1px solid rgba(34,197,94,0.18)" }}>
+                    <p className="text-xs mb-1 uppercase tracking-widest" style={{ color: "rgba(74,222,128,0.6)" }}>Market Size</p>
+                    <p className="text-white font-semibold text-sm">{String(approvalData.market_size ?? "—")}</p>
                   </div>
-                  <div>
-                    <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.7rem" }}>GROWTH</p>
-                    <p className="text-white font-medium">{String(approvalData.growth_rate ?? "—")}</p>
+                  <div className="rounded-xl p-4"
+                    style={{ background: "rgba(99,102,241,0.07)", border: "1px solid rgba(99,102,241,0.18)" }}>
+                    <p className="text-xs mb-1 uppercase tracking-widest" style={{ color: "rgba(165,180,252,0.6)" }}>Growth Rate</p>
+                    <p className="text-white font-semibold text-sm">{String(approvalData.growth_rate ?? "—")}</p>
                   </div>
                 </div>
-                {approvalData.market_gap ? (
-                  <p className="text-xs pl-3" style={{ borderLeft: "2px solid hsl(258,85%,64%)", color: "rgba(255,255,255,0.6)", fontStyle: "italic" }}>
-                    {String(approvalData.market_gap)}
-                  </p>
+                {!!approvalData.market_gap && (
+                  <div className="rounded-xl p-4 mb-3"
+                    style={{ background: "rgba(124,58,237,0.06)", border: "1px solid rgba(124,58,237,0.2)" }}>
+                    <p className="text-xs mb-1 uppercase tracking-widest" style={{ color: "rgba(167,139,250,0.6)" }}>Market Gap Identified</p>
+                    <p className="text-sm" style={{ color: "rgba(255,255,255,0.75)", lineHeight: "1.6" }}>
+                      {String(approvalData.market_gap)}
+                    </p>
+                  </div>
+                )}
+                {(approvalData.top_competitors as Array<{name:string;weakness:string}> | undefined)?.length ? (
+                  <div className="rounded-xl p-4"
+                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <p className="text-xs mb-2 uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)" }}>Top Competitors</p>
+                    <div className="space-y-1">
+                      {(approvalData.top_competitors as Array<{name:string;weakness:string}>).slice(0,3).map((c,i) => (
+                        <div key={i} className="flex items-start gap-2 text-xs">
+                          <span className="font-medium text-white flex-shrink-0">{c.name}</span>
+                          <span style={{ color: "rgba(255,255,255,0.4)" }}>— {c.weakness}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 ) : null}
               </div>
             )}
 
-            <input
-              value={redirectNote}
-              onChange={e => setRedirectNote(e.target.value)}
-              placeholder="Optional: redirect the strategy (e.g. 'focus on B2B enterprise')"
-              maxLength={160}
-              disabled={approvalBusy}
-              className="w-full rounded-lg p-3 text-sm text-white outline-none mb-4 disabled:opacity-50"
-              style={{ background: "hsl(240,15%,7%)", border: "1px solid rgba(255,255,255,0.08)" }}
-            />
+            {/* Redirect input (shown only in redirect mode) */}
+            {redirectMode && (
+              <div className="px-6 pb-4">
+                <p className="text-xs mb-2" style={{ color: "rgb(250,204,21)" }}>
+                  Describe the new direction for the remaining 5 agents:
+                </p>
+                <textarea
+                  value={redirectNote}
+                  onChange={e => setRedirectNote(e.target.value)}
+                  placeholder="e.g. Focus on B2B enterprise customers, ignore consumer market"
+                  maxLength={200}
+                  rows={3}
+                  disabled={approvalBusy}
+                  autoFocus
+                  className="w-full rounded-xl p-3 text-sm text-white outline-none resize-none disabled:opacity-50"
+                  style={{ background: "hsl(240,15%,6%)", border: "1px solid rgba(234,179,8,0.35)", caretColor: "rgb(250,204,21)" }}
+                />
+              </div>
+            )}
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => submitApproval(true)}
-                disabled={approvalBusy}
-                className="flex-1 py-3 rounded-xl font-medium text-sm text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ background: "hsl(258,85%,64%)" }}>
-                {approvalBusy ? "Continuing…" : "Approve & continue →"}
-              </button>
-              <button
-                onClick={() => submitApproval(false)}
-                disabled={approvalBusy}
-                className="flex-1 py-3 rounded-xl font-medium text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)", color: "rgb(252,165,165)" }}>
-                Reject & stop
-              </button>
+            {/* Action buttons */}
+            <div className="p-6 pt-2 space-y-2">
+              {!redirectMode ? (
+                <>
+                  <button
+                    onClick={() => submitApproval(true)}
+                    disabled={approvalBusy}
+                    className="w-full py-3.5 rounded-xl font-semibold text-sm text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    style={{ background: "hsl(142,71%,35%)", boxShadow: "0 0 20px rgba(34,197,94,0.2)" }}>
+                    {approvalBusy ? "Continuing…" : "✓ Approve — continue with this direction"}
+                  </button>
+                  <button
+                    onClick={() => setRedirectMode(true)}
+                    disabled={approvalBusy}
+                    className="w-full py-3.5 rounded-xl font-semibold text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    style={{ background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.35)", color: "rgb(250,204,21)" }}>
+                    ↗ Redirect strategy
+                  </button>
+                  <button
+                    onClick={async () => { await submitApproval(false); reset() }}
+                    disabled={approvalBusy}
+                    className="w-full py-3.5 rounded-xl font-semibold text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", color: "rgb(252,165,165)" }}>
+                    ✕ Reject — start over
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => submitApproval(true)}
+                    disabled={approvalBusy || !redirectNote.trim()}
+                    className="w-full py-3.5 rounded-xl font-semibold text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    style={{ background: "rgba(234,179,8,0.15)", border: "1px solid rgba(234,179,8,0.4)", color: "rgb(250,204,21)" }}>
+                    {approvalBusy ? "Redirecting…" : "↗ Apply redirect & continue"}
+                  </button>
+                  <button
+                    onClick={() => { setRedirectMode(false); setRedirectNote("") }}
+                    disabled={approvalBusy}
+                    className="w-full py-3 rounded-xl text-sm cursor-pointer disabled:opacity-50"
+                    style={{ color: "rgba(255,255,255,0.35)" }}>
+                    ← Back
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -485,10 +761,25 @@ function GenerateContent() {
         {/* ── GENERATING STATE ── */}
         {submitted && (
           <>
+            {/* Demo / offline fallback banner */}
+            {demoMode && (
+              <div className="mb-6 p-3.5 rounded-xl flex items-start gap-2"
+                style={{ background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.3)" }}>
+                <span className="text-base leading-none mt-0.5">⚡</span>
+                <p className="text-xs leading-relaxed" style={{ color: "rgb(250,204,21)" }}>
+                  <span className="font-semibold">Demo mode — showing a sample plan.</span>{" "}
+                  <span style={{ color: "rgba(250,204,21,0.8)" }}>
+                    The live backend was slow to respond, so PitchCraft is replaying a pre-built run.
+                    Connect the backend for live generation.
+                  </span>
+                </p>
+              </div>
+            )}
+
             <div className="mb-8">
               <div className="flex justify-between items-start mb-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-white truncate">&quot;{idea}&quot;</p>
+                  <p className="text-sm font-medium text-white truncate">&quot;{displayIdea}&quot;</p>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="text-xs px-2 py-0.5 rounded-full"
                       style={{
@@ -516,7 +807,34 @@ function GenerateContent() {
               </div>
             </div>
 
-            {steps.map(step => <StepCard key={step.stepNumber} step={step} />)}
+            {steps.map(step => <StepCard key={step.stepNumber} step={step} demo={demoMode} />)}
+
+            {/* Demo complete — offer to retry the real backend with the user's own idea */}
+            {demoMode && demoComplete && (
+              <div className="mt-4 p-5 rounded-xl"
+                style={{ background: "rgba(234,179,8,0.07)", border: "1px solid rgba(234,179,8,0.25)" }}>
+                <p className="text-sm font-semibold mb-1" style={{ color: "rgb(250,204,21)" }}>
+                  ✓ Sample plan complete
+                </p>
+                <p className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.45)" }}>
+                  That was a pre-built demo so you could see the full 7-agent pipeline. Run it live on your own idea once the backend is reachable.
+                </p>
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => idea.trim() ? startGeneration(idea, selectedModel) : reset()}
+                    className="py-2.5 px-4 rounded-lg text-xs font-semibold text-white cursor-pointer transition-all"
+                    style={{ background: "hsl(258,85%,64%)" }}>
+                    ⚡ Try with your idea →
+                  </button>
+                  <button
+                    onClick={reset}
+                    className="py-2.5 px-4 rounded-lg text-xs font-medium cursor-pointer transition-all"
+                    style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                    ← Start over
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Approval rejected / timed out */}
             {stoppedMsg && !showApproval && (

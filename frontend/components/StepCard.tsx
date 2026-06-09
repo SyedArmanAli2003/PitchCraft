@@ -14,6 +14,7 @@ const SPECIALISTS: Record<number, string> = {
 
 interface StepCardProps {
   step: AgentStep
+  demo?: boolean
 }
 
 type ToolKey = AgentStep["tool"]
@@ -39,7 +40,7 @@ function ToolBadge({ tool }: { tool: ToolKey }) {
   )
 }
 
-function StepCard({ step }: StepCardProps) {
+function StepCard({ step, demo = false }: StepCardProps) {
   const { stepNumber, name, status, data, startedAt, completedAt } = step
   const duration = startedAt && completedAt
     ? ((completedAt - startedAt) / 1000).toFixed(1) + "s"
@@ -63,13 +64,33 @@ function StepCard({ step }: StepCardProps) {
     <div
       className="w-full rounded-2xl p-5 mb-3 transition-all duration-300"
       style={{
+        position: "relative",
+        overflow: "hidden",
         background: "hsl(240,15%,8%)",
-        border: `1px solid ${borderColor}`,
+        border: `1px solid ${demo ? "rgba(234,179,8,0.28)" : borderColor}`,
         opacity: status === "waiting" ? 0.5 : 1,
         boxShadow: status === "running" ? "0 0 20px rgba(124,58,237,0.12)" : "none",
       }}
     >
-      <div className="flex justify-between items-center">
+      {demo && (
+        <span
+          aria-hidden
+          className="pointer-events-none select-none font-extrabold"
+          style={{
+            position: "absolute",
+            top: "50%",
+            right: "1.25rem",
+            transform: "translateY(-50%) rotate(-14deg)",
+            fontSize: "2.4rem",
+            letterSpacing: "0.18em",
+            color: "rgba(234,179,8,0.08)",
+            zIndex: 0,
+          }}
+        >
+          DEMO
+        </span>
+      )}
+      <div className="flex justify-between items-center" style={{ position: "relative", zIndex: 1 }}>
         <div className="flex items-center gap-3">
           <div
             className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${status === "running" ? "animate-pulse" : ""}`}
@@ -103,7 +124,7 @@ function StepCard({ step }: StepCardProps) {
         </div>
       </div>
 
-      <div className={`step-content ${status === "complete" && data ? "open" : ""}`}>
+      <div className={`step-content ${status === "complete" && data ? "open" : ""}`} style={{ position: "relative", zIndex: 1 }}>
         {status === "complete" && data && (
           <div className="mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
             <StepData stepNumber={stepNumber} data={data} />
