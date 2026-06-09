@@ -1,17 +1,46 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import type { BusinessPlan } from "@/lib/types"
+import type { BusinessPlan, AuditChain } from "@/lib/types"
+import { API } from "@/lib/config"
 import Navbar from "@/components/Navbar"
 
 export default function PlanDisplay({ plan }: { plan: BusinessPlan }) {
   const router = useRouter()
   const [copied, setCopied] = useState(false)
+  const [hashCopied, setHashCopied] = useState(false)
+  const [auditChain, setAuditChain] = useState<AuditChain | null>(null)
+  const [auditLoading, setAuditLoading] = useState(true)
+
+  useEffect(() => {
+    if (!plan._id || plan._id === "no-db") { setAuditLoading(false); return }
+    fetch(API.audit(plan._id))
+      .then(res => {
+        if (res.status === 404) { setAuditLoading(false); return null }
+        if (!res.ok) throw new Error("fetch failed")
+        return res.json() as Promise<AuditChain>
+      })
+      .then(data => { setAuditChain(data); setAuditLoading(false) })
+      .catch(() => setAuditLoading(false))
+  }, [plan._id])
 
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const finalHash = auditChain?.chain?.[auditChain.chain.length - 1]?.hash ?? null
+
+  const handleCopyHash = () => {
+    if (!finalHash) return
+    navigator.clipboard.writeText(finalHash)
+    setHashCopied(true)
+    setTimeout(() => setHashCopied(false), 2000)
+  }
+
+  const scrollToAudit = () => {
+    document.getElementById("audit-trail")?.scrollIntoView({ behavior: "smooth" })
   }
 
   const v = plan.validation
@@ -38,7 +67,14 @@ export default function PlanDisplay({ plan }: { plan: BusinessPlan }) {
               Generated {new Date(plan.created_at).toLocaleDateString("en-IN", { day:"numeric", month:"long", year:"numeric" })}
             </p>
           </div>
-          <div className="flex gap-2 flex-shrink-0">
+          <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
+            {auditChain?.verified && (
+              <button onClick={scrollToAudit}
+                className="text-xs px-3 py-2 rounded-lg cursor-pointer transition-colors"
+                style={{ background: "rgba(34,197,94,0.1)", color: "rgb(74,222,128)", border: "1px solid rgba(34,197,94,0.25)" }}>
+                🔒 Audit verified
+              </button>
+            )}
             <button onClick={handleShare}
               className="text-sm px-4 py-2 rounded-lg cursor-pointer transition-colors"
               style={{ background: "hsl(240,15%,12%)", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -232,6 +268,105 @@ export default function PlanDisplay({ plan }: { plan: BusinessPlan }) {
             )}
           </div>
         )}
+
+        {/* Audit Trail */}
+        <div id="audit-trail" className="rounded-2xl p-6 mb-6"
+          style={{ background: "hsl(240,15%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+
+          {/* Section header */}
+          <div className="flex items-center justify-between mb-5">
+            <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.35)" }}>
+              Audit Trail
+            </p>
+            {!auditLoading && auditChain && (
+              <span className="text-xs px-2.5 py-1 rounded-full font-medium"
+                style={auditChain.verified
+                  ? { background: "rgba(34,197,94,0.1)", color: "rgb(74,222,128)", border: "1px solid rgba(34,197,94,0.25)" }
+                  : { background: "rgba(239,68,68,0.1)", color: "rgb(252,165,165)", border: "1px solid rgba(239,68,68,0.25)" }}>
+                {auditChain.verified ? "✓ Chain verified" : "⚠ Chain broken"}
+              </span>
+            )}
+          </div>
+
+          {/* Loading skeleton */}
+          {auditLoading && (
+            <div className="space-y-3 animate-pulse">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-full flex-shrink-0" style={{ background: "rgba(255,255,255,0.06)" }} />
+                  <div className="flex-1 h-4 rounded" style={{ background: "rgba(255,255,255,0.06)" }} />
+                  <div className="w-32 h-4 rounded" style={{ background: "rgba(255,255,255,0.04)" }} />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* No chain available */}
+          {!auditLoading && !auditChain && (
+            <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>
+              Audit trail not available for this plan.
+            </p>
+          )}
+
+          {/* Chain rows */}
+          {!auditLoading && auditChain && (
+            <>
+              <div className="space-y-0">
+                {auditChain.chain.map((step, i) => (
+                  <div key={step.step_number}>
+                    <div className="flex items-center gap-3 py-2.5">
+                      {/* Step circle */}
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                        style={{ background: "rgba(124,58,237,0.15)", color: "hsl(258,80%,78%)", border: "1px solid rgba(124,58,237,0.3)" }}>
+                        {step.step_number}
+                      </div>
+                      {/* Name */}
+                      <span className="text-sm text-white flex-1 min-w-0">{step.step_name}</span>
+                      {/* Timestamp */}
+                      <span className="text-xs flex-shrink-0 hidden sm:block"
+                        style={{ color: "rgba(255,255,255,0.3)" }}>
+                        {new Date(step.timestamp_utc).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                      </span>
+                      {/* Truncated hash */}
+                      <span className="font-mono text-xs flex-shrink-0"
+                        style={{ color: "rgba(255,255,255,0.25)", letterSpacing: "0.02em" }}>
+                        {step.hash.slice(0, 16)}…
+                      </span>
+                    </div>
+                    {/* Chain link between rows */}
+                    {i < auditChain.chain.length - 1 && (
+                      <div className="flex items-center gap-3 py-0.5">
+                        <div className="w-7 flex justify-center flex-shrink-0">
+                          <span style={{ color: "rgba(255,255,255,0.15)", fontSize: "0.75rem" }}>⛓</span>
+                        </div>
+                        <div className="flex-1 border-t" style={{ borderColor: "rgba(255,255,255,0.04)" }} />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Final hash row */}
+              {finalHash && (
+                <div className="mt-5 pt-4 flex items-center gap-3 flex-wrap"
+                  style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <span className="text-xs flex-shrink-0" style={{ color: "rgba(255,255,255,0.35)" }}>
+                    Final chain hash:
+                  </span>
+                  <span className="font-mono text-xs flex-1 min-w-0 break-all select-all"
+                    style={{ color: "rgba(255,255,255,0.45)" }}>
+                    {finalHash}
+                  </span>
+                  <button onClick={handleCopyHash}
+                    className="text-xs px-3 py-1.5 rounded-lg cursor-pointer transition-colors flex-shrink-0"
+                    style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    {hashCopied ? "✓ Copied" : "Copy"}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
         <button onClick={() => window.print()}
           className="w-full py-3 rounded-xl text-sm cursor-pointer transition-colors"

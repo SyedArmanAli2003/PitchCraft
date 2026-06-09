@@ -1,5 +1,26 @@
 export type StepStatus = "waiting" | "running" | "complete" | "error"
 
+export interface AuditStep {
+  step_number: number
+  step_name: string
+  hash: string
+  previous_hash: string
+  timestamp_utc: string
+}
+
+export interface AuditChain {
+  plan_id: string
+  chain: AuditStep[]
+  verified: boolean
+  generated_at: string
+}
+
+export type GeminiTool =
+  | "gemini-3-pro"
+  | "gemini-3-flash"
+  | "gemini-2.5-flash"
+  | "gemini-2.5-flash-lite"
+
 export interface AgentStep {
   stepNumber: number
   name: string
@@ -7,7 +28,7 @@ export interface AgentStep {
   data?: Record<string, unknown>
   startedAt?: number
   completedAt?: number
-  tool: "gemini" | "llama" | "deepseek" | "minimax" | "mongodb" | "system"
+  tool: GeminiTool | "mongodb" | "system"
 }
 
 export interface BusinessPlan {
@@ -57,7 +78,7 @@ export interface BusinessPlan {
     funding_needed: string
   }
   risks?: {
-    risks: Array<{ risk: string; severity: "High"|"Medium"|"Low"; mitigation: string }>
+    risks: Array<{ risk: string; severity: "High" | "Medium" | "Low"; mitigation: string }>
     swot: {
       strengths: string[]
       weaknesses: string[]

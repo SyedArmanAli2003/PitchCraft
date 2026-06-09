@@ -1,7 +1,14 @@
 fastapi==0.115.0
 uvicorn==0.30.0
 pymongo==4.8.0
-google-generativeai==0.8.0
+certifi>=2024.7.4
+google-genai>=1.0.0
 python-dotenv==1.0.0
 pydantic==2.8.0
-openai>=1.35.0
+dnspython==2.6.1
+
+# --- Arize Phoenix observability (Arize partner track) ---
+# Tracing is optional & fully guarded: if these are absent the app still runs.
+arize-phoenix-otel>=0.6.0
+openinference-instrumentation-google-genai>=0.1.0
+opentelemetry-exporter-otlp>=1.27.0

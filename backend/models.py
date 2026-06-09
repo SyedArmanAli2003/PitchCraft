@@ -1,13 +1,17 @@
 from typing import Literal
 from pydantic import BaseModel
 
-# Valid model keys the user can choose from the frontend.
-ModelKey = Literal["gemini", "llama", "deepseek", "minimax"]
+ModelKey = Literal[
+    "gemini-3-pro",
+    "gemini-3-flash",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+]
 
 
 class IdeaRequest(BaseModel):
     idea: str
-    model: ModelKey = "gemini"
+    model: ModelKey = "gemini-3-flash"
 
 
 class PlanStep(BaseModel):
@@ -15,3 +19,8 @@ class PlanStep(BaseModel):
     name: str
     status: str
     data: dict | None = None
+
+
+class ApprovalDecision(BaseModel):
+    approved: bool
+    direction_override: str | None = None

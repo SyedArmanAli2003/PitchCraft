@@ -2,6 +2,7 @@
 
 import os
 import re
+import uuid
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
@@ -13,9 +14,9 @@ load_dotenv()
 MONGODB_URI = os.getenv("MONGODB_URI", "")
 DB_NAME = os.getenv("MONGODB_DB", "pitchcraft")
 
-# --------------------------------------------------------------------------- #
-# Lazy client — created on first use so a bad/missing URI doesn't crash import
-# --------------------------------------------------------------------------- #
+# ---------------------------------------------------------------------------
+# Lazy client
+# ---------------------------------------------------------------------------
 
 _client: MongoClient | None = None
 _db = None
@@ -23,25 +24,27 @@ _mongo_available = False
 
 
 def _get_db():
-    """Return the database handle, initialising the client on first call."""
     global _client, _db, _mongo_available
-
     if _db is not None:
         return _db
-
     uri = MONGODB_URI.strip()
-    # Placeholder values mean "not configured"
     if not uri or "<" in uri or "your" in uri.lower():
         return None
-
     try:
-        _client = MongoClient(
-            uri,
-            serverSelectionTimeoutMS=5000,
-            tls=True,
-            tlsAllowInvalidCertificates=True,   # fixes TLSV1_ALERT_INTERNAL_ERROR on Python 3.12+
-        )
-        _client.admin.command("ping")  # quick connectivity check
+        kwargs: dict = {"serverSelectionTimeoutMS": 5000, "tls": True}
+        # Secure by default: ship a known-good CA bundle via certifi (fixes the
+        # common Windows "CERTIFICATE_VERIFY_FAILED" against Atlas). Opt into
+        # insecure verification only if MONGODB_TLS_INSECURE is truthy.
+        if os.getenv("MONGODB_TLS_INSECURE", "").strip().lower() in ("1", "true", "yes"):
+            kwargs["tlsAllowInvalidCertificates"] = True
+        else:
+            try:
+                import certifi
+                kwargs["tlsCAFile"] = certifi.where()
+            except Exception:
+                pass
+        _client = MongoClient(uri, **kwargs)
+        _client.admin.command("ping")
         _db = _client[DB_NAME]
         _mongo_available = True
         return _db
@@ -58,9 +61,9 @@ def _collections():
     return db["business_plans"], db["market_data"]
 
 
-# --------------------------------------------------------------------------- #
+# ---------------------------------------------------------------------------
 # Seed data
-# --------------------------------------------------------------------------- #
+# ---------------------------------------------------------------------------
 
 SEED_MARKET_DATA = [
     {
@@ -69,12 +72,7 @@ SEED_MARKET_DATA = [
         "growth_rate": "8% CAGR",
         "key_players": ["Apple", "Microsoft", "Google", "Amazon", "NVIDIA"],
         "avg_revenue": "$50M for mid-stage startups",
-        "challenges": [
-            "Rapid obsolescence",
-            "High talent costs",
-            "Intense competition",
-            "Security and privacy compliance",
-        ],
+        "challenges": ["Rapid obsolescence", "High talent costs", "Intense competition", "Security and privacy compliance"],
     },
     {
         "industry": "Healthcare",
@@ -82,12 +80,7 @@ SEED_MARKET_DATA = [
         "growth_rate": "9% CAGR",
         "key_players": ["UnitedHealth", "Johnson & Johnson", "Pfizer", "Roche"],
         "avg_revenue": "$30M for mid-stage startups",
-        "challenges": [
-            "Strict regulation (FDA/HIPAA)",
-            "Long sales cycles",
-            "Reimbursement complexity",
-            "Clinical validation costs",
-        ],
+        "challenges": ["Strict regulation (FDA/HIPAA)", "Long sales cycles", "Reimbursement complexity", "Clinical validation costs"],
     },
     {
         "industry": "Education",
@@ -95,12 +88,7 @@ SEED_MARKET_DATA = [
         "growth_rate": "10% CAGR (EdTech)",
         "key_players": ["Coursera", "Duolingo", "Chegg", "Byju's", "Khan Academy"],
         "avg_revenue": "$15M for mid-stage startups",
-        "challenges": [
-            "Low willingness to pay",
-            "High churn",
-            "Slow institutional adoption",
-            "Measuring learning outcomes",
-        ],
+        "challenges": ["Low willingness to pay", "High churn", "Slow institutional adoption", "Measuring learning outcomes"],
     },
     {
         "industry": "Food & Beverage",
@@ -108,12 +96,7 @@ SEED_MARKET_DATA = [
         "growth_rate": "6% CAGR",
         "key_players": ["Nestle", "PepsiCo", "Coca-Cola", "Unilever", "DoorDash"],
         "avg_revenue": "$20M for mid-stage startups",
-        "challenges": [
-            "Thin margins",
-            "Perishability and logistics",
-            "Food safety regulation",
-            "Brand differentiation",
-        ],
+        "challenges": ["Thin margins", "Perishability and logistics", "Food safety regulation", "Brand differentiation"],
     },
     {
         "industry": "E-commerce",
@@ -121,12 +104,7 @@ SEED_MARKET_DATA = [
         "growth_rate": "11% CAGR",
         "key_players": ["Amazon", "Alibaba", "Shopify", "eBay", "Walmart"],
         "avg_revenue": "$25M for mid-stage startups",
-        "challenges": [
-            "Customer acquisition cost",
-            "Logistics and fulfillment",
-            "Razor-thin margins",
-            "Platform dependency",
-        ],
+        "challenges": ["Customer acquisition cost", "Logistics and fulfillment", "Razor-thin margins", "Platform dependency"],
     },
     {
         "industry": "Finance",
@@ -134,12 +112,7 @@ SEED_MARKET_DATA = [
         "growth_rate": "7% CAGR (FinTech)",
         "key_players": ["JPMorgan", "Visa", "Stripe", "PayPal", "Mastercard"],
         "avg_revenue": "$40M for mid-stage startups",
-        "challenges": [
-            "Heavy regulation and licensing",
-            "Trust and security",
-            "Fraud risk",
-            "Incumbent competition",
-        ],
+        "challenges": ["Heavy regulation and licensing", "Trust and security", "Fraud risk", "Incumbent competition"],
     },
     {
         "industry": "Real Estate",
@@ -147,12 +120,7 @@ SEED_MARKET_DATA = [
         "growth_rate": "5% CAGR",
         "key_players": ["Zillow", "CBRE", "Compass", "Opendoor", "Redfin"],
         "avg_revenue": "$22M for mid-stage startups",
-        "challenges": [
-            "High capital intensity",
-            "Market cyclicality",
-            "Fragmented data",
-            "Long transaction cycles",
-        ],
+        "challenges": ["High capital intensity", "Market cyclicality", "Fragmented data", "Long transaction cycles"],
     },
     {
         "industry": "Transportation",
@@ -160,12 +128,7 @@ SEED_MARKET_DATA = [
         "growth_rate": "6% CAGR",
         "key_players": ["Uber", "Tesla", "FedEx", "Maersk", "Lyft"],
         "avg_revenue": "$28M for mid-stage startups",
-        "challenges": [
-            "Capital and infrastructure costs",
-            "Regulatory hurdles",
-            "Unit economics",
-            "Safety and liability",
-        ],
+        "challenges": ["Capital and infrastructure costs", "Regulatory hurdles", "Unit economics", "Safety and liability"],
     },
     {
         "industry": "Entertainment",
@@ -173,12 +136,7 @@ SEED_MARKET_DATA = [
         "growth_rate": "8% CAGR",
         "key_players": ["Netflix", "Disney", "Spotify", "Sony", "Tencent"],
         "avg_revenue": "$18M for mid-stage startups",
-        "challenges": [
-            "Content costs",
-            "Attention competition",
-            "Monetization and churn",
-            "Rights and licensing",
-        ],
+        "challenges": ["Content costs", "Attention competition", "Monetization and churn", "Rights and licensing"],
     },
     {
         "industry": "Agriculture",
@@ -186,18 +144,12 @@ SEED_MARKET_DATA = [
         "growth_rate": "7% CAGR (AgTech)",
         "key_players": ["John Deere", "Bayer", "Cargill", "Corteva", "Indigo Ag"],
         "avg_revenue": "$16M for mid-stage startups",
-        "challenges": [
-            "Long adoption cycles",
-            "Weather and climate risk",
-            "Fragmented buyers",
-            "Capital intensity",
-        ],
+        "challenges": ["Long adoption cycles", "Weather and climate risk", "Fragmented buyers", "Capital intensity"],
     },
 ]
 
 
 def seed_market_data() -> None:
-    """Insert the pre-seeded industry data if the collection is empty."""
     _, market_data = _collections()
     if market_data is None:
         return
@@ -206,22 +158,14 @@ def seed_market_data() -> None:
 
 
 def init_db() -> None:
-    """Verify connectivity, seed reference data, and ensure indexes.
-
-    Called once on application startup.  Failure is logged but not raised so
-    the app still starts when MongoDB is unavailable.
-    """
     db = _get_db()
     if db is None:
         print("⚠️  MongoDB not configured — running without persistence.")
         return
-
     try:
         business_plans = db["business_plans"]
         market_data = db["market_data"]
-
         seed_market_data()
-
         business_plans.create_index(
             [("share_token", ASCENDING)],
             unique=True,
@@ -229,26 +173,19 @@ def init_db() -> None:
             name="share_token_unique",
         )
         market_data.create_index([("industry", TEXT)], name="industry_text")
-
         print("✅ MongoDB connected and ready")
-    except Exception as error:  # noqa: BLE001
+    except Exception as error:
         print(f"❌ MongoDB init error: {error}")
 
 
-# --------------------------------------------------------------------------- #
-# Query functions — all gracefully no-op when DB is unavailable
-# --------------------------------------------------------------------------- #
+# ---------------------------------------------------------------------------
+# Query functions
+# ---------------------------------------------------------------------------
 
 def save_plan(idea: str) -> str:
-    """Create a new (empty) business plan document and return its id as a str.
-
-    Returns a fake id ("no-db") if MongoDB is not available so the agent can
-    still run in a DB-less mode.
-    """
     business_plans, _ = _collections()
     if business_plans is None:
         return "no-db"
-
     doc = {
         "idea": idea,
         "created_at": datetime.now(timezone.utc),
@@ -266,7 +203,6 @@ def save_plan(idea: str) -> str:
 
 
 def update_plan(plan_id: str, field: str, data) -> None:
-    """Update a single field of a plan (no-op when DB unavailable)."""
     if plan_id == "no-db":
         return
     business_plans, _ = _collections()
@@ -282,7 +218,6 @@ def update_plan(plan_id: str, field: str, data) -> None:
 
 
 def get_plan(plan_id: str) -> dict | None:
-    """Fetch a plan by its id. Returns None if not found or id is invalid."""
     if plan_id == "no-db":
         return None
     business_plans, _ = _collections()
@@ -294,7 +229,6 @@ def get_plan(plan_id: str) -> dict | None:
 
 
 def get_plan_by_token(token: str) -> dict | None:
-    """Fetch a plan by its public share token."""
     business_plans, _ = _collections()
     if business_plans is None:
         return None
@@ -302,7 +236,6 @@ def get_plan_by_token(token: str) -> dict | None:
 
 
 def get_plan_count() -> int:
-    """Return total number of business plans in the database. Returns 0 if DB is unavailable."""
     business_plans, _ = _collections()
     if business_plans is None:
         return 0
@@ -312,27 +245,35 @@ def get_plan_count() -> int:
         return 0
 
 
+def get_recent_plans(limit: int = 10) -> list[dict]:
+    business_plans, _ = _collections()
+    if business_plans is None:
+        return []
+    try:
+        docs = list(
+            business_plans.find({"status": "complete"})
+            .sort("created_at", -1)
+            .limit(limit)
+        )
+        for d in docs:
+            d["_id"] = str(d["_id"])
+        return docs
+    except Exception:
+        return []
+
 
 def search_market_data(industry_keyword: str) -> dict:
-    """Find the best-matching seeded industry for a free-text keyword.
-
-    Falls back to the static SEED_MARKET_DATA when MongoDB is unavailable so
-    the agent always has market context to work with.
-    """
     keyword = (industry_keyword or "").strip()
     lowered = keyword.lower()
-
     _, market_data_col = _collections()
 
-    # ── Static fallback (used when DB is down or not configured) ── #
-    def _search_static(keyword: str) -> dict:
-        kw = keyword.lower()
+    def _search_static(kw: str) -> dict:
+        k = kw.lower()
         for row in SEED_MARKET_DATA:
             industry = row["industry"].lower()
             tokens = re.split(r"[^a-z]+", industry)
-            if industry in kw or any(t and t in kw for t in tokens):
+            if industry in k or any(t and t in k for t in tokens):
                 return dict(row)
-        # Default to Technology
         return dict(SEED_MARKET_DATA[0])
 
     if market_data_col is None:
@@ -345,13 +286,11 @@ def search_market_data(industry_keyword: str) -> dict:
             )
             if exact:
                 return _clean(exact)
-
             for row in market_data_col.find({}):
                 industry = row["industry"].lower()
                 tokens = re.split(r"[^a-z]+", industry)
                 if industry in lowered or any(t and t in lowered for t in tokens):
                     return _clean(row)
-
         fallback = market_data_col.find_one({"industry": "Technology"}) or market_data_col.find_one({})
         return _clean(fallback) if fallback else _search_static(lowered)
     except Exception:
@@ -359,34 +298,148 @@ def search_market_data(industry_keyword: str) -> dict:
 
 
 def _clean(doc: dict) -> dict:
-    """Drop the Mongo _id (ObjectId is not JSON-serializable) from a doc."""
     doc = dict(doc)
     doc.pop("_id", None)
     return doc
 
 
-# --------------------------------------------------------------------------- #
+# ---------------------------------------------------------------------------
+# Audit chains (tamper-evident SHA-256 chain, one document per plan)
+# ---------------------------------------------------------------------------
+
+def _audit_collection():
+    db = _get_db()
+    if db is None:
+        return None
+    return db["audit_chains"]
+
+
+def save_audit_chain(plan_id: str, chain: list[dict]) -> None:
+    """Persist (or replace) the full audit chain for a plan."""
+    if plan_id == "no-db":
+        return
+    col = _audit_collection()
+    if col is None:
+        return
+    try:
+        col.update_one(
+            {"plan_id": plan_id},
+            {"$set": {
+                "plan_id": plan_id,
+                "chain": chain,
+                "generated_at": datetime.now(timezone.utc),
+            }},
+            upsert=True,
+        )
+    except Exception as exc:
+        print(f"⚠️  save_audit_chain failed: {exc}")
+
+
+def get_audit_chain(plan_id: str) -> dict | None:
+    """Return the stored audit-chain document {plan_id, chain, generated_at}."""
+    if plan_id == "no-db":
+        return None
+    col = _audit_collection()
+    if col is None:
+        return None
+    try:
+        doc = col.find_one({"plan_id": plan_id})
+        if doc:
+            doc["_id"] = str(doc["_id"])
+        return doc
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Human-in-the-loop approval requests
+# ---------------------------------------------------------------------------
+# In-memory fallback so the approval gate still works when MongoDB is not
+# configured (local dev): the SSE poller and the /decide endpoint run in the
+# same process, so they share this dict. Production uses the Mongo collection.
+_MEMORY_APPROVALS: dict[str, dict] = {}
+
+
+def _approval_collection():
+    db = _get_db()
+    if db is None:
+        return None
+    return db["approval_requests"]
+
+
+def create_approval_request(plan_id: str, step_data: dict) -> str:
+    """Create a pending approval request and return its approval_id (uuid4)."""
+    approval_id = str(uuid.uuid4())
+    doc = {
+        "plan_id": plan_id,
+        "approval_id": approval_id,
+        "status": "pending",
+        "step_data": step_data,
+        "created_at": datetime.now(timezone.utc),
+        "decided_at": None,
+        "direction_override": None,
+    }
+    col = _approval_collection()
+    if col is None:
+        _MEMORY_APPROVALS[approval_id] = doc
+        return approval_id
+    try:
+        col.insert_one(dict(doc))  # copy so pymongo's _id injection won't leak
+    except Exception as exc:
+        print(f"⚠️  create_approval_request failed, using memory: {exc}")
+        _MEMORY_APPROVALS[approval_id] = doc
+    return approval_id
+
+
+def get_approval_request(approval_id: str) -> dict | None:
+    """Return the approval request document, or None if not found."""
+    col = _approval_collection()
+    if col is not None:
+        try:
+            doc = col.find_one({"approval_id": approval_id})
+            if doc:
+                doc["_id"] = str(doc["_id"])
+                return doc
+        except Exception:
+            pass
+    mem = _MEMORY_APPROVALS.get(approval_id)
+    return dict(mem) if mem else None
+
+
+def resolve_approval(approval_id: str, approved: bool, direction_override: str | None) -> bool:
+    """Mark an approval request approved/rejected. Returns True if a matching
+    request was found and updated."""
+    status = "approved" if approved else "rejected"
+    now = datetime.now(timezone.utc)
+    update = {"status": status, "decided_at": now, "direction_override": direction_override}
+    col = _approval_collection()
+    if col is not None:
+        try:
+            result = col.update_one({"approval_id": approval_id}, {"$set": update})
+            if result.matched_count:
+                return True
+        except Exception as exc:
+            print(f"⚠️  resolve_approval failed: {exc}")
+    mem = _MEMORY_APPROVALS.get(approval_id)
+    if mem is not None:
+        mem.update(update)
+        return True
+    return False
+
+
+# ---------------------------------------------------------------------------
 # MCP tools
-# --------------------------------------------------------------------------- #
+# ---------------------------------------------------------------------------
 
 def mcp_search_similar_plans(industry: str) -> dict:
-    """MCP Tool: Search stored plans by industry for market intelligence."""
     business_plans, _ = _collections()
     if business_plans is None:
         return {"tool": "search_similar_plans", "results": [], "count": 0}
-
     try:
         plans = list(
             business_plans.find(
-                {
-                    "validation.target_market": {"$regex": industry, "$options": "i"},
-                    "status": "complete",
-                },
-                {
-                    "market_research": 1,
-                    "financials": 1,
-                    "validation.viability_score": 1,
-                },
+                {"validation.target_market": {"$regex": industry, "$options": "i"}, "status": "complete"},
+                {"market_research": 1, "financials": 1, "validation.viability_score": 1},
             ).limit(3)
         )
         for p in plans:
@@ -397,45 +450,48 @@ def mcp_search_similar_plans(industry: str) -> dict:
 
 
 def mcp_get_market_benchmarks(industry: str) -> dict:
-    """MCP Tool: Aggregate financial benchmarks from stored plans."""
+    """Aggregate real benchmarks from completed plans in MongoDB and blend them
+    with the seed industry data. Used to ground the agent's financial step in
+    whatever the database has actually seen before."""
     market = search_market_data(industry)
     business_plans, _ = _collections()
+    viability_scores: list[float] = []
+    break_even_months: list[int] = []
+    plans_analyzed = 0
 
-    recent_plans = []
     if business_plans is not None:
         try:
-            recent_plans = list(
-                business_plans.find({"status": "complete"}, {"financials": 1})
-                .sort("created_at", -1)
-                .limit(10)
-            )
+            cursor = business_plans.find(
+                {"status": "complete"},
+                {"validation.viability_score": 1, "financials.break_even_month": 1},
+            ).sort("created_at", -1).limit(50)
+            for p in cursor:
+                plans_analyzed += 1
+                score = (p.get("validation") or {}).get("viability_score")
+                if isinstance(score, (int, float)):
+                    viability_scores.append(float(score))
+                be = (p.get("financials") or {}).get("break_even_month")
+                if isinstance(be, (int, float)):
+                    break_even_months.append(int(be))
         except Exception:
             pass
+
+    def _avg(xs):
+        return round(sum(xs) / len(xs), 1) if xs else None
 
     return {
         "tool": "get_market_benchmarks",
         "industry_data": market,
-        "plans_analyzed": len(recent_plans),
-        "note": "Grounded in MongoDB stored data",
+        "plans_analyzed": plans_analyzed,
+        "avg_viability_score": _avg(viability_scores),
+        "avg_break_even_month": _avg(break_even_months),
+        "note": "Grounded in real plans stored in MongoDB",
     }
 
 
 def mcp_get_tools_manifest() -> list:
-    """Returns the MCP tools manifest for this server."""
     return [
-        {
-            "name": "search_similar_plans",
-            "description": "Search stored business plans by industry",
-            "input_schema": {"industry": "string"},
-        },
-        {
-            "name": "get_market_benchmarks",
-            "description": "Get aggregated financial benchmarks",
-            "input_schema": {"industry": "string"},
-        },
-        {
-            "name": "store_plan",
-            "description": "Store a completed business plan",
-            "input_schema": {"plan_id": "string"},
-        },
+        {"name": "search_similar_plans", "description": "Search stored business plans by industry", "input_schema": {"industry": "string"}},
+        {"name": "get_market_benchmarks", "description": "Get aggregated financial benchmarks", "input_schema": {"industry": "string"}},
+        {"name": "store_plan", "description": "Store a completed business plan", "input_schema": {"plan_id": "string"}},
     ]

@@ -19,16 +19,16 @@ interface StepCardProps {
 type ToolKey = AgentStep["tool"]
 
 const TOOL_BADGE: Record<ToolKey, { label: string; bg: string; color: string; border: string }> = {
-  gemini:   { label: "GEMINI",   bg: "rgba(124,58,237,0.12)", color: "hsl(258,80%,78%)",  border: "rgba(124,58,237,0.25)" },
-  llama:    { label: "LLAMA",    bg: "rgba(34,197,94,0.1)",   color: "rgb(74,222,128)",   border: "rgba(34,197,94,0.25)"  },
-  deepseek: { label: "DEEPSEEK", bg: "rgba(14,165,233,0.1)",  color: "rgb(125,211,252)",  border: "rgba(14,165,233,0.25)" },
-  minimax:  { label: "MINIMAX",  bg: "rgba(234,179,8,0.1)",   color: "rgb(250,204,21)",   border: "rgba(234,179,8,0.25)"  },
-  mongodb:  { label: "MONGODB",  bg: "rgba(34,197,94,0.12)",  color: "rgb(74,222,128)",   border: "rgba(34,197,94,0.25)"  },
-  system:   { label: "SYSTEM",   bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", border: "rgba(255,255,255,0.12)" },
+  "gemini-3-pro":       { label: "G3 PRO",    bg: "rgba(124,58,237,0.18)", color: "hsl(258,90%,82%)",   border: "rgba(124,58,237,0.4)"  },
+  "gemini-3-flash":     { label: "G3 FLASH",  bg: "rgba(124,58,237,0.12)", color: "hsl(258,80%,78%)",   border: "rgba(124,58,237,0.28)" },
+  "gemini-2.5-flash":   { label: "G2.5",      bg: "rgba(99,102,241,0.12)", color: "hsl(239,84%,78%)",   border: "rgba(99,102,241,0.28)" },
+  "gemini-2.5-flash-lite": { label: "G2.5 LITE", bg: "rgba(139,92,246,0.1)", color: "hsl(262,60%,75%)", border: "rgba(139,92,246,0.22)" },
+  mongodb:              { label: "MONGODB",   bg: "rgba(34,197,94,0.12)",  color: "rgb(74,222,128)",    border: "rgba(34,197,94,0.25)"  },
+  system:               { label: "SYSTEM",    bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", border: "rgba(255,255,255,0.12)" },
 }
 
 function ToolBadge({ tool }: { tool: ToolKey }) {
-  const b = TOOL_BADGE[tool] ?? TOOL_BADGE.gemini
+  const b = TOOL_BADGE[tool] ?? TOOL_BADGE["gemini-3-flash"]
   return (
     <span className="text-xs px-2 py-0.5 rounded-full"
       style={{ background: b.bg, color: b.color, border: `1px solid ${b.border}` }}>
@@ -36,8 +36,6 @@ function ToolBadge({ tool }: { tool: ToolKey }) {
     </span>
   )
 }
-
-
 
 function StepCard({ step }: StepCardProps) {
   const { stepNumber, name, status, data, startedAt, completedAt } = step
@@ -93,20 +91,16 @@ function StepCard({ step }: StepCardProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          {status !== "waiting" && (
-            <ToolBadge tool={step.tool} />
-          )}
+          {status !== "waiting" && <ToolBadge tool={step.tool} />}
           {status === "running" && (
             <div className="w-4 h-4 rounded-full border-2 animate-spin"
-              style={{ borderColor: "hsl(258,90%,66%)", borderTopColor: "transparent" }}
-            />
+              style={{ borderColor: "hsl(258,90%,66%)", borderTopColor: "transparent" }} />
           )}
           {status === "complete" && <span className="text-xs" style={{ color: "rgb(74,222,128)" }}>Done</span>}
           {status === "error" && <span className="text-xs text-red-400">Failed</span>}
         </div>
       </div>
 
-      {/* Expandable content */}
       <div className={`step-content ${status === "complete" && data ? "open" : ""}`}>
         {status === "complete" && data && (
           <div className="mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
@@ -148,7 +142,7 @@ function StepData({ stepNumber, data }: { stepNumber: number; data: Record<strin
         <div key={i} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
           <div className="w-8 h-8 rounded-full flex items-center justify-center mb-2 text-sm font-bold"
             style={{ background: "rgba(124,58,237,0.15)", color: "hsl(258,80%,78%)" }}>
-            {p.name.slice(0,2).toUpperCase()}
+            {p.name.slice(0, 2).toUpperCase()}
           </div>
           <p className="text-xs font-medium text-white">{p.name}</p>
           <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>{p.job}</p>
@@ -160,9 +154,9 @@ function StepData({ stepNumber, data }: { stepNumber: number; data: Record<strin
 
   if (stepNumber === 4) return (
     <div className="grid grid-cols-3 gap-3 text-xs">
-      {["problem","solution","unique_value_proposition"].map((key, i) => (
-        <div key={key} className="p-3 rounded-lg" style={{ background: "rgba(255,255,255,0.03)", borderTop: `2px solid ${["rgba(239,68,68,0.5)","rgba(34,197,94,0.5)","rgba(124,58,237,0.5)"][i]}` }}>
-          <p className="uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.65rem" }}>{["Problem","Solution","USP"][i]}</p>
+      {["problem", "solution", "unique_value_proposition"].map((key, i) => (
+        <div key={key} className="p-3 rounded-lg" style={{ background: "rgba(255,255,255,0.03)", borderTop: `2px solid ${["rgba(239,68,68,0.5)", "rgba(34,197,94,0.5)", "rgba(124,58,237,0.5)"][i]}` }}>
+          <p className="uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.65rem" }}>{["Problem", "Solution", "USP"][i]}</p>
           <p style={{ color: "rgba(255,255,255,0.75)", lineHeight: "1.6" }}>{val(key)}</p>
         </div>
       ))}
@@ -171,7 +165,7 @@ function StepData({ stepNumber, data }: { stepNumber: number; data: Record<strin
 
   if (stepNumber === 5) return (
     <div className="space-y-2">
-      {[["Year 1", val("year1_revenue"), 40],["Year 2", val("year2_revenue"), 65],["Year 3", val("year3_revenue"), 90]].map(([yr, rev, pct]) => (
+      {[["Year 1", val("year1_revenue"), 40], ["Year 2", val("year2_revenue"), 65], ["Year 3", val("year3_revenue"), 90]].map(([yr, rev, pct]) => (
         <div key={String(yr)} className="flex items-center gap-3 text-xs">
           <span className="w-12 text-right" style={{ color: "rgba(255,255,255,0.4)" }}>{yr}</span>
           <div className="flex-1 h-2 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
@@ -188,7 +182,7 @@ function StepData({ stepNumber, data }: { stepNumber: number; data: Record<strin
 
   if (stepNumber === 6) return (
     <div className="space-y-2">
-      {(data.risks as Array<{ risk: string; severity: string; mitigation: string }> | undefined)?.slice(0,3).map((r, i) => (
+      {(data.risks as Array<{ risk: string; severity: string }> | undefined)?.slice(0, 3).map((r, i) => (
         <div key={i} className="flex items-start gap-2 text-xs">
           <span className="px-2 py-0.5 rounded-full flex-shrink-0" style={{
             background: r.severity === "High" ? "rgba(239,68,68,0.15)" : r.severity === "Medium" ? "rgba(234,179,8,0.15)" : "rgba(34,197,94,0.15)",

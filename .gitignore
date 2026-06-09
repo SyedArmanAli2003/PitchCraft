@@ -1,0 +1,37 @@
+# ── Secrets — NEVER commit these ──────────────────────────────────────────────
+.env
+.env.local
+.env.production
+api/.env
+frontend/.env.local
+frontend/.env.production
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+.Python
+dist/
+build/
+*.egg-info/
+
+# ── Next.js ───────────────────────────────────────────────────────────────────
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+
+# ── Root node_modules (if any) ────────────────────────────────────────────────
+node_modules/
+
+# ── Vercel ────────────────────────────────────────────────────────────────────
+.vercel/
+
+# ── OS / Editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
