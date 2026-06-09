@@ -8,6 +8,8 @@
 
 Built for the [Google Cloud Rapid Agent Hackathon](https://rapid-agent.devpost.com/) · MongoDB & Arize tracks
 
+**🔗 Live demo:** _https://<your-app>.vercel.app_ (set after deploy) · **🎥 Demo video:** _<add YouTube/Loom link>_ · **💻 Repo:** [github.com/SyedArmanAli2003/PitchCraft](https://github.com/SyedArmanAli2003/PitchCraft)
+
 </div>
 
 ---
@@ -30,7 +32,7 @@ The challenge asks for an agent that **moves beyond chat**, **handles a multi-st
 | --- | --- |
 | **Move beyond chat** | A 7-step agent that *acts* — it queries a database, grounds its reasoning in stored market data, runs tools, and writes structured artifacts (not prose). |
 | **Multi-step mission, human in control** | The agent decomposes the job into 7 reasoning steps and **pauses after market research for a human approval gate** — approve, reject, or *redirect the strategy* before it commits to the full plan. |
-| **Partner power** | **MongoDB** is the agent's memory + grounding layer + tamper-evident ledger. **Arize Phoenix** gives full agent observability — every Gemini call and every step is traced. |
+| **Partner power** | The agent consumes **MongoDB through a real Model Context Protocol server** — it's its memory, grounding layer, and tamper-evident ledger. **Arize Phoenix** gives full agent observability — every Gemini call and every step is traced. |
 | **Built with Gemini 3** | Uses the current `google-genai` SDK with a **Gemini 3 → 2.5 cascade** (`gemini-3-pro-preview`, `gemini-3-flash-preview`, …) and forced-JSON output for reliable structured generation. |
 
 ### Judging-criteria fit
@@ -82,8 +84,27 @@ Pick a tier in the UI; on quota/`429` the agent **rotates across your API keys**
 ### 📊 Arize Phoenix observability (Arize track)
 Startup wires **OpenInference auto-instrumentation** for the `google-genai` SDK into Phoenix. Every Gemini call (prompt, model, tokens, latency) and every agent step appears as a span in your Phoenix project. Status is exposed at `/api/observability`. Fully optional and **self-disabling** if no key is set — it can never crash a run.
 
-### 🗄️ MongoDB as the agent's brain-stem
-MongoDB stores plans, seeds 10 industries of market data, powers a queryable benchmark/similar-plan tool layer the agent calls for grounding, and holds the audit chains. Exposed as an MCP-style tool manifest at `/api/mcp/tools`.
+### 🗄️ MongoDB as the agent's brain-stem — via a real MCP server
+MongoDB stores plans, seeds 10 industries of market data, and holds the audit chains. Critically, the agent doesn't query Mongo directly — it goes through a **genuine Model Context Protocol server** ([`backend/mcp_server.py`](backend/mcp_server.py), built on the official `mcp` SDK) that exposes three tools:
+
+| MCP tool | What it grounds |
+| --- | --- |
+| `get_industry_market_data` | Step 2 — market size, growth, players, challenges |
+| `search_similar_plans` | Step 2 — patterns from past plans in the same market |
+| `get_market_benchmarks` | Step 5 — realistic financials from aggregated real plans |
+
+The agent calls these over the real MCP protocol (an in-memory client↔server session), so **MongoDB literally gives the agent its "superpowers" through MCP** — the hackathon's Partner Power requirement, satisfied to the letter. The same server runs over **stdio** for any external MCP client (Claude Desktop, Cursor, MCP Inspector):
+
+```bash
+cd backend && python mcp_server.py          # stdio MCP server
+```
+```jsonc
+// Claude Desktop / Cursor config
+{ "mcpServers": { "pitchcraft-mongodb": {
+    "command": "python", "args": ["/abs/path/to/backend/mcp_server.py"] } } }
+```
+
+Inspect or invoke the tools over HTTP too: `GET /api/mcp/tools`, `GET /api/mcp/demo`, `POST /api/mcp/call`.
 
 ---
 
@@ -105,11 +126,11 @@ MongoDB stores plans, seeds 10 industries of market data, powers a queryable ben
                                     └──────────┘  └───────────┘  └─────────────┘
 ```
 
-**Backend** (`backend/`): `index.py` (FastAPI app & routes) · `agent.py` (the 7-step agent) · `mongodb.py` (persistence, seed data, MCP tools, audit storage) · `audit.py` (SHA-256 chain) · `observability.py` (Arize Phoenix) · `models.py` (Pydantic schemas).
+**Backend** (`backend/`): `index.py` (FastAPI app & routes) · `agent.py` (the 7-step agent) · `mcp_server.py` (the MongoDB MCP server) · `mongodb.py` (persistence, seed data, tools, audit storage) · `audit.py` (SHA-256 chain) · `observability.py` (Arize Phoenix) · `models.py` (Pydantic schemas).
 
 **Frontend** (`frontend/`): App-Router Next.js — `app/generate` (the agent runner + gates), `app/plan/[id]` (the plan + audit trail), `components/StepCard.tsx`, particle hero.
 
-**Tech:** Gemini 3 (`google-genai`) · MongoDB Atlas (`pymongo`, TLS via `certifi`) · Arize Phoenix (`arize-phoenix-otel` + `openinference-instrumentation-google-genai`) · FastAPI + SSE · Next.js 14 + Tailwind + Three.js.
+**Tech:** Gemini 3 (`google-genai`) · MongoDB Atlas (`pymongo`, TLS via `certifi`) · Model Context Protocol (`mcp`) · Arize Phoenix (`arize-phoenix-otel` + `openinference-instrumentation-google-genai`) · FastAPI + SSE · Next.js 14 + Tailwind + Three.js.
 
 ---
 
@@ -124,9 +145,10 @@ MongoDB stores plans, seeds 10 industries of market data, powers a queryable ben
 | `GET` | `/api/approval/{id}` | Approval request status. |
 | `POST` | `/api/approval/{id}/decide` | Record a reviewer decision (`approved`, optional `direction_override`). |
 | `GET` | `/api/share/{token}` | Public read-only plan by share token. |
-| `GET` | `/api/models` | Available Gemini tiers. |
+| `GET` | `/api/models` | Available Gemini tiers (with `available` flag). |
+| `GET` | `/api/agent/info` | Honest agent manifest (framework, models, integrations). |
 | `GET` | `/api/observability` | Arize Phoenix tracing status. |
-| `GET` | `/api/mcp/tools` · `/api/mcp/demo` | MongoDB tool manifest + a live grounding demo. |
+| `GET`·`POST` | `/api/mcp/tools` · `/api/mcp/demo` · `/api/mcp/call` | Real MCP tool manifest, a live protocol demo, and direct tool invocation. |
 | `GET` | `/api/stats` · `/api/plans` · `/api/health` | Counts, recent plans, health. |
 
 ---
@@ -193,6 +215,7 @@ Then:
 | `PHOENIX_PROJECT` | – | Project name in Phoenix (default `pitchcraft`). |
 | `APPROVAL_TIMEOUT_SECONDS` | – | How long the gate waits before abandoning (default 300). |
 | `SKIP_APPROVAL` | – | `true` auto-approves the gate after 3s. |
+| `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW` | – | Per-IP `/api/generate` limit (default 3 req / 60 s). |
 | `FRONTEND_URL` | – | Your deployed URL, for server-side fetches + CORS. |
 
 ---
@@ -207,6 +230,7 @@ This build went through a full QA pass. Fixed and **verified live** in this repo
 - ✅ **Arize Phoenix tracing** initializes, instruments `google-genai`, and emits spans (verified) — and self-disables safely without a key.
 - ✅ **CORS** fixed to match Vercel preview domains via regex (the old `https://*.vercel.app` literal never matched).
 - ✅ **Secure MongoDB TLS** via `certifi` (replaced `tlsAllowInvalidCertificates`) — verified it still connects to Atlas.
+- ✅ **Real MCP server** — 3 MongoDB tools served over the Model Context Protocol; verified via in-memory client↔server round-trip, the HTTP endpoints, and a clean stdio boot. The agent's grounding now flows through MCP.
 - ✅ **Audit chain** build → verify → tamper-detect, all unit-tested.
 - ✅ Backend HTTP smoke test (health/models/observability/mcp/stats/404/422) and frontend `tsc` + `eslint` all green.
 
@@ -214,7 +238,7 @@ This build went through a full QA pass. Fixed and **verified live** in this repo
 
 ## Roadmap
 
-- **Official MongoDB MCP server**: promote the in-process tool layer to the partner's hosted MCP server for full protocol-level integration.
+- **MongoDB's hosted MCP server**: also connect the agent to MongoDB's official `mongodb-mcp-server` (raw `find`/`aggregate`) alongside PitchCraft's domain MCP server.
 - **Atlas Vector Search**: embed past plans for true semantic "similar plans" grounding.
 - **Phoenix evals**: add automated LLM-as-judge scoring of plan quality on top of the traces.
 - **Export**: one-click PDF / pitch-deck export (print-to-PDF exists today).

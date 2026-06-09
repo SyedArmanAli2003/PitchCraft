@@ -7,6 +7,9 @@ python-dotenv==1.0.0
 pydantic==2.8.0
 dnspython==2.6.1
 
+# --- Model Context Protocol: real MongoDB MCP server (backend/mcp_server.py) ---
+mcp>=1.2.0
+
 # --- Arize Phoenix observability (Arize partner track) ---
 # Tracing is optional & fully guarded: if these are absent the app still runs.
 arize-phoenix-otel>=0.6.0

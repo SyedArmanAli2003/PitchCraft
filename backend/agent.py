@@ -176,6 +176,50 @@ async def _generate(prompt: str, model_key: str, keys: list[str]) -> tuple[dict,
 
 
 # ---------------------------------------------------------------------------
+# MongoDB grounding via the real MCP protocol
+# ---------------------------------------------------------------------------
+
+def _direct_tool_fallback(name: str, arguments: dict) -> dict:
+    """Call the underlying MongoDB tool directly if the MCP layer is unavailable
+    (e.g. the `mcp` package isn't installed). The agent must never lose grounding
+    over a transport hiccup."""
+    industry = arguments.get("industry", "technology")
+    if name == "search_similar_plans":
+        return mcp_search_similar_plans(industry)
+    if name == "get_market_benchmarks":
+        return mcp_get_market_benchmarks(industry)
+    if name == "get_industry_market_data":
+        return search_market_data(industry)
+    return {}
+
+
+async def call_mcp_tool(name: str, arguments: dict) -> dict:
+    """Invoke a PitchCraft MongoDB MCP tool over the *real* MCP protocol using an
+    in-memory client↔server session. This is how the agent gets its MongoDB
+    "superpowers" through MCP. Falls back to a direct call so a run never breaks.
+    """
+    try:
+        from mcp.shared.memory import create_connected_server_and_client_session
+        from mcp_server import mcp as _mcp_server
+
+        async with create_connected_server_and_client_session(_mcp_server._mcp_server) as client:
+            res = await client.call_tool(name, arguments)
+            if not res.isError:
+                sc = getattr(res, "structuredContent", None)
+                if isinstance(sc, dict) and sc:
+                    return sc.get("result", sc) if set(sc.keys()) == {"result"} else sc
+                for c in res.content:
+                    if getattr(c, "type", None) == "text":
+                        try:
+                            return json.loads(c.text)
+                        except (json.JSONDecodeError, ValueError):
+                            continue
+    except Exception as exc:
+        print(f"⚠️  MCP tool '{name}' failed, using direct fallback: {exc}")
+    return _direct_tool_fallback(name, arguments)
+
+
+# ---------------------------------------------------------------------------
 # Tamper-evident audit chain (additive — must never break the pipeline)
 # ---------------------------------------------------------------------------
 
@@ -263,10 +307,10 @@ Return ONLY valid JSON:
         yield {"step": 1, "name": "Validation", "status": "error", "error": str(e)}
         return
 
-    # ----- STEP 2 — Market research (MongoDB MCP) ------------------------ #
-    industry = validation.get("target_market", "")
-    market = search_market_data(industry)
-    mcp_context = mcp_search_similar_plans(validation.get("target_market", "technology"))
+    # ----- STEP 2 — Market research (MongoDB via MCP protocol) ----------- #
+    industry = validation.get("target_market", "") or "technology"
+    market = await call_mcp_tool("get_industry_market_data", {"industry": industry})
+    mcp_context = await call_mcp_tool("search_similar_plans", {"industry": industry})
 
     prompt2 = f"""For startup: "{idea}"
 Industry context from MongoDB: {json.dumps(market)}
@@ -419,7 +463,7 @@ Return ONLY valid JSON:
         return
 
     # ----- STEP 5 — Financial projections (grounded in MongoDB benchmarks) - #
-    benchmarks = mcp_get_market_benchmarks(validation.get("target_market", "technology"))
+    benchmarks = await call_mcp_tool("get_market_benchmarks", {"industry": validation.get("target_market", "technology")})
     prompt5 = f"""Create 3-year financial projection for: "{idea}"
 Revenue model: {business_plan.get('revenue_model', 'SaaS')}
 Benchmarks from our MongoDB (via MCP): {json.dumps(benchmarks)}

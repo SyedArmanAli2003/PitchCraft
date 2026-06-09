@@ -245,6 +245,18 @@ def get_plan_count() -> int:
         return 0
 
 
+def get_plans_today() -> int:
+    """Number of plans created since 00:00 UTC today."""
+    business_plans, _ = _collections()
+    if business_plans is None:
+        return 0
+    try:
+        start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        return business_plans.count_documents({"created_at": {"$gte": start}})
+    except Exception:
+        return 0
+
+
 def get_recent_plans(limit: int = 10) -> list[dict]:
     business_plans, _ = _collections()
     if business_plans is None:

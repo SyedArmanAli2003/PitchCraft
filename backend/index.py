@@ -7,6 +7,8 @@ Vercel:     Automatically invoked via api/index.py serverless function.
 import os
 import sys
 import json
+import time
+from collections import defaultdict
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -15,18 +17,44 @@ load_dotenv()
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from models import IdeaRequest, ApprovalDecision
-from agent import run_pitchcraft_agent, get_models_list
+from agent import run_pitchcraft_agent, get_models_list, _load_api_keys
 from mongodb import (
-    init_db, save_plan, get_plan, get_plan_by_token, get_plan_count,
-    get_recent_plans, get_audit_chain, get_approval_request, resolve_approval,
+    init_db, save_plan, get_plan, get_plan_by_token, get_plan_count, get_plans_today,
+    get_recent_plans, get_audit_chain, get_approval_request, resolve_approval, _get_db,
 )
 from audit import verify_audit_chain, reconstruct_steps_from_plan
 from observability import init_observability, observability_status
+
+
+# ── Simple in-memory per-IP rate limiter for /api/generate ────────────────────
+# Process-local (no Redis): on Vercel it's per-instance, which is enough to stop
+# a single client hammering the Gemini quota during a demo.
+_RATE_HITS: dict[str, list[float]] = defaultdict(list)
+_RATE_MAX = int(os.getenv("RATE_LIMIT_MAX", "3"))
+_RATE_WINDOW = float(os.getenv("RATE_LIMIT_WINDOW", "60"))
+
+
+def _rate_limited(ip: str) -> bool:
+    now = time.time()
+    hits = [t for t in _RATE_HITS[ip] if now - t < _RATE_WINDOW]
+    if len(hits) >= _RATE_MAX:
+        _RATE_HITS[ip] = hits
+        return True
+    hits.append(now)
+    _RATE_HITS[ip] = hits
+    return False
+
+
+def _gemini_ready() -> bool:
+    try:
+        return len(_load_api_keys()) > 0
+    except Exception:
+        return False
 
 
 @asynccontextmanager
@@ -41,7 +69,13 @@ app = FastAPI(title="PitchCraft API", lifespan=lifespan)
 # Starlette's allow_origins only does exact matches, so Vercel preview domains
 # (https://<branch>-<proj>.vercel.app) need a regex. Keep explicit localhost +
 # any configured FRONTEND_URL for credentialed requests.
-_explicit_origins = [o for o in ("http://localhost:3000", os.getenv("FRONTEND_URL", "")) if o]
+_explicit_origins = [
+    o for o in (
+        "http://localhost:3000",
+        "http://localhost:3001",
+        os.getenv("FRONTEND_URL", ""),
+    ) if o
+]
 
 app.add_middleware(
     CORSMiddleware,
@@ -56,23 +90,48 @@ app.add_middleware(
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "PitchCraft Agent"}
+    return {
+        "status": "ok",
+        "service": "PitchCraft Agent",
+        "gemini": _gemini_ready(),
+        "atlas": _get_db() is not None,
+    }
 
 
 # Legacy /health kept for backward compat
 @app.get("/health")
 async def health_legacy():
-    return {"status": "ok", "service": "PitchCraft Agent"}
+    return await health()
 
 
 @app.get("/api/stats")
 async def get_stats():
-    return {"total_plans": get_plan_count()}
+    return {"total_plans": get_plan_count(), "plans_today": get_plans_today()}
 
 
 @app.get("/api/models")
 async def list_models():
-    return {"models": get_models_list()}
+    available = _gemini_ready()
+    return {"models": [{**m, "available": available} for m in get_models_list()]}
+
+
+@app.get("/api/agent/info")
+async def agent_info():
+    """Honest description of the agent for hackathon reviewers. NOTE: this is a
+    custom FastAPI orchestration, NOT Google Cloud Agent Builder/ADK — we do not
+    claim a framework we don't use."""
+    from agent import MODEL_CONFIGS, CASCADE_ORDER
+    return {
+        "agent": "PitchCraft",
+        "framework": "Custom FastAPI agent orchestration (async, SSE-streamed)",
+        "model_provider": "Google Gemini 3 via the google-genai SDK",
+        "model_cascade": [MODEL_CONFIGS[k]["model_id"] for k in CASCADE_ORDER],
+        "orchestration": "7-step sequential pipeline with a human-in-the-loop approval gate",
+        "mcp_integration": "PitchCraft MongoDB MCP server (Model Context Protocol)",
+        "observability": "Arize Phoenix (OpenInference auto-instrumentation)",
+        "trust": "SHA-256 tamper-evident audit chain per plan",
+        "hackathon": "Google Cloud Rapid Agent Hackathon 2026 — MongoDB & Arize tracks",
+    }
 
 
 @app.get("/api/observability")
@@ -82,7 +141,15 @@ async def observability():
 
 
 @app.post("/api/generate")
-async def generate_plan(request: IdeaRequest):
+async def generate_plan(request: IdeaRequest, http_request: Request):
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    if _rate_limited(client_ip):
+        return JSONResponse(
+            status_code=429,
+            content={"error": "Too many requests", "retry_after": int(_RATE_WINDOW)},
+            headers={"Retry-After": str(int(_RATE_WINDOW))},
+        )
+
     plan_id = save_plan(request.idea)
     model_key = request.model
 
@@ -194,22 +261,37 @@ async def get_plans():
 
 @app.get("/api/mcp/tools")
 async def get_mcp_tools():
-    from mongodb import mcp_get_tools_manifest
+    """The real tool manifest served by the PitchCraft MongoDB MCP server."""
+    from mcp_server import list_tools_manifest
     return {
         "mcp_server": "PitchCraft MongoDB MCP",
-        "version": "1.0.0",
-        "tools": mcp_get_tools_manifest(),
+        "protocol": "Model Context Protocol",
+        "transports": ["stdio", "in-memory (agent)"],
+        "tools": await list_tools_manifest(),
     }
 
 
 @app.get("/api/mcp/demo")
 async def mcp_demo():
-    from mongodb import mcp_search_similar_plans, mcp_get_market_benchmarks
+    """Invoke the MCP tools over the real protocol (in-memory client↔server
+    session) — exactly the path the agent uses to ground its reasoning."""
+    from agent import call_mcp_tool
     return {
-        "demo": "MongoDB MCP giving the agent market intelligence",
-        "tool_1_result": mcp_search_similar_plans("technology"),
-        "tool_2_result": mcp_get_market_benchmarks("technology"),
+        "demo": "MongoDB powering the agent via the MCP protocol",
+        "get_industry_market_data": await call_mcp_tool("get_industry_market_data", {"industry": "technology"}),
+        "search_similar_plans": await call_mcp_tool("search_similar_plans", {"industry": "technology"}),
+        "get_market_benchmarks": await call_mcp_tool("get_market_benchmarks", {"industry": "technology"}),
     }
+
+
+@app.post("/api/mcp/call")
+async def mcp_call(req: dict):
+    """Invoke a named MCP tool over the protocol. Body: {"tool": str, "arguments": {...}}."""
+    from agent import call_mcp_tool
+    tool = (req or {}).get("tool")
+    if not tool:
+        raise HTTPException(status_code=400, detail="Provide a 'tool' name")
+    return {"tool": tool, "result": await call_mcp_tool(tool, (req or {}).get("arguments") or {})}
 
 
 if __name__ == "__main__":
