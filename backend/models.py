@@ -2,16 +2,17 @@ from typing import Literal
 from pydantic import BaseModel, field_validator
 
 ModelKey = Literal[
-    "gemini-3-pro",
-    "gemini-3-flash",
+    "gemini-3.5-flash",
+    "gemini-2.5-pro",
     "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
 ]
 
 
 class IdeaRequest(BaseModel):
     idea: str
-    model: ModelKey = "gemini-3-flash"
+    model: ModelKey = "gemini-3.5-flash"
 
     @field_validator("idea")
     @classmethod

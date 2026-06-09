@@ -23,12 +23,12 @@ const HOW_IT_WORKS = [
 ]
 
 const AGENTS = [
-  { num: 1, name: "Strategy Analyst",         role: "Validates idea viability, scores 1–10",     badge: "Gemini 3",         accent: "rgba(124,58,237,0.15)" },
+  { num: 1, name: "Strategy Analyst",         role: "Validates idea viability, scores 1–10",     badge: "Gemini 3.5",         accent: "rgba(234,179,8,0.12)" },
   { num: 2, name: "Market Intelligence",       role: "Market size, competitors, growth gaps",       badge: "MongoDB + Gemini", accent: "rgba(34,197,94,0.10)" },
-  { num: 3, name: "Customer Insights",         role: "3 detailed customer personas",               badge: "Gemini 3",         accent: "rgba(124,58,237,0.15)" },
-  { num: 4, name: "Business Architect",        role: "Full plan + GTM strategy",                   badge: "Gemini 3",         accent: "rgba(124,58,237,0.15)" },
+  { num: 3, name: "Customer Insights",         role: "3 detailed customer personas",               badge: "Gemini 3.5",         accent: "rgba(234,179,8,0.12)" },
+  { num: 4, name: "Business Architect",        role: "Full plan + GTM strategy",                   badge: "Gemini 3.5",         accent: "rgba(234,179,8,0.12)" },
   { num: 5, name: "Financial Modeller",        role: "3-year projections + break-even month",      badge: "MongoDB + Gemini", accent: "rgba(34,197,94,0.10)" },
-  { num: 6, name: "Risk & Compliance",         role: "Risk matrix + full SWOT analysis",           badge: "Gemini 3",         accent: "rgba(124,58,237,0.15)" },
+  { num: 6, name: "Risk & Compliance",         role: "Risk matrix + full SWOT analysis",           badge: "Gemini 3.5",         accent: "rgba(234,179,8,0.12)" },
   { num: 7, name: "Chief of Staff",            role: "Compiles, seals & saves to MongoDB Atlas",   badge: "MongoDB Atlas",    accent: "rgba(234,179,8,0.10)" },
 ]
 
@@ -37,7 +37,7 @@ const FEATURES = [
   { icon: "🍃", title: "MongoDB grounded",           body: "Real industry data from Atlas feeds every market analysis. Plans are stored, auditable, and searchable." },
   { icon: "🔒", title: "SHA-256 audit chain",        body: "Each generation step is hashed into a tamper-evident chain. The output is verifiable by anyone." },
   { icon: "🔭", title: "Arize traced",               body: "Every Gemini call is traced to Arize Phoenix. Full observability — latency, tokens, model — for every plan." },
-  { icon: "⚡", title: "Multi-model cascade",        body: "Gemini 3 Pro → Flash → 2.5 Flash → Lite. Rotates API keys on quota. Never crashes on one model's limits." },
+  { icon: "⚡", title: "Multi-model cascade",        body: "Gemini 3.5 Flash → 2.5 Pro → 2.5 Flash → 2.0 Flash → 1.5 Flash. Rotates API keys on quota. Never crashes on one model's limits." },
   { icon: "📤", title: "Share & export",             body: "Shareable URL + print-to-PDF in one click. Send your plan to investors in under 60 seconds." },
 ]
 

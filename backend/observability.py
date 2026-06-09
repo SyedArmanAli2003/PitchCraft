@@ -122,7 +122,6 @@ def agent_span(name: str, attributes: dict | None = None):
     try:
         with _TRACER.start_as_current_span(name) as span:
             try:
-                # Mark as a CHAIN span so Phoenix renders it as an agent step.
                 span.set_attribute("openinference.span.kind", "CHAIN")
                 for k, v in (attributes or {}).items():
                     if v is not None:
@@ -131,5 +130,4 @@ def agent_span(name: str, attributes: dict | None = None):
                 pass
             yield span
     except Exception:
-        # If anything in the tracing path breaks, do not take the agent down.
-        yield None
+        raise

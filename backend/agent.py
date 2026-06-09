@@ -86,34 +86,40 @@ def _load_api_keys() -> list[str]:
 # ---------------------------------------------------------------------------
 
 MODEL_CONFIGS: dict[str, dict] = {
-    "gemini-3-pro": {
-        "display": "Gemini 3 Pro",
+    "gemini-3.5-flash": {
+        "display": "Gemini 3.5 Flash",
         "tier": 1,
-        "model_id": "gemini-3-pro-preview",
+        "model_id": "gemini-3.5-flash",
     },
-    "gemini-3-flash": {
-        "display": "Gemini 3 Flash",
+    "gemini-2.5-pro": {
+        "display": "Gemini 2.5 Pro",
         "tier": 2,
-        "model_id": "gemini-3-flash-preview",
+        "model_id": "gemini-2.5-pro",
     },
     "gemini-2.5-flash": {
         "display": "Gemini 2.5 Flash",
         "tier": 3,
         "model_id": "gemini-2.5-flash",
     },
-    "gemini-2.5-flash-lite": {
-        "display": "Gemini 2.5 Flash Lite",
+    "gemini-2.0-flash": {
+        "display": "Gemini 2.0 Flash",
         "tier": 4,
-        "model_id": "gemini-2.5-flash-lite",
+        "model_id": "gemini-2.0-flash",
+    },
+    "gemini-1.5-flash": {
+        "display": "Gemini 1.5 Flash",
+        "tier": 5,
+        "model_id": "gemini-1.5-flash",
     },
 }
 
 # Strict cascade: if chosen model fails, fall to the next tier down
 CASCADE_ORDER = [
-    "gemini-3-pro",
-    "gemini-3-flash",
+    "gemini-3.5-flash",
+    "gemini-2.5-pro",
     "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
 ]
 
 
@@ -153,7 +159,7 @@ def _client_for(api_key: str) -> "genai.Client":
     if client is None:
         client = genai.Client(
             api_key=api_key,
-            http_options={'retry_options': {'attempts': 1}, 'timeout': 90}
+            http_options={'retry_options': {'attempts': 1}}
         )
         _CLIENTS[api_key] = client
     return client
@@ -161,13 +167,20 @@ def _client_for(api_key: str) -> "genai.Client":
 
 def _call_single(prompt: str, model_id: str, api_key: str) -> dict:
     client = _client_for(api_key)
+    # Build config dynamically so we can disable thinking on models that support it.
+    # Gemini 2.5+ has thinking enabled by default which conflicts with forced-JSON mode.
+    cfg_kwargs: dict = {
+        "response_mime_type": "application/json",
+        "temperature": 0.7,
+    }
+    try:
+        cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+    except (AttributeError, TypeError):
+        pass  # SDK version without ThinkingConfig — safe to skip
     response = client.models.generate_content(
         model=model_id,
         contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            temperature=0.7,
-        ),
+        config=types.GenerateContentConfig(**cfg_kwargs),
     )
     return parse_json_response(response.text)
 
@@ -203,6 +216,7 @@ async def _generate(prompt: str, model_key: str, keys: list[str]) -> tuple[dict,
             )
             return result, candidate
         except Exception as e:
+            print(f"⚠️  Cascade: {cfg['model_id']} failed: {type(e).__name__}: {e}")
             last_err = e
 
     raise last_err or RuntimeError("All Gemini models in the cascade failed.")
@@ -333,7 +347,7 @@ def _skip_approval_enabled() -> bool:
 # the real ADK LlmAgent objects AND the /api/agent/manifest payload, so the
 # manifest can never drift from the agents that actually run.
 
-DEFAULT_MODEL_ID = MODEL_CONFIGS["gemini-3-flash"]["model_id"]
+DEFAULT_MODEL_ID = MODEL_CONFIGS["gemini-3.5-flash"]["model_id"]
 
 
 # --- ADK tool wrappers over the MongoDB MCP-backed functions ---------------- #
@@ -749,7 +763,7 @@ class PitchCraftOrchestra:
             },
         }
 
-    async def run(self, idea: str, plan_id: str, model_key: str = "gemini-3-flash"):
+    async def run(self, idea: str, plan_id: str, model_key: str = "gemini-3.5-flash"):
         """Yield one SSE-ready dict per completed step — identical event shape to
         the original pipeline, plus additive `agent` / `specialist` metadata."""
         keys = _load_api_keys()
@@ -940,7 +954,7 @@ def get_agent_manifest() -> dict:
     return get_orchestra().manifest()
 
 
-async def run_pitchcraft_agent(idea: str, plan_id: str, model_key: str = "gemini-3-flash"):
+async def run_pitchcraft_agent(idea: str, plan_id: str, model_key: str = "gemini-3.5-flash"):
     """Public entry point — delegates to the multi-agent orchestrator.
     Yields one SSE-ready dict per completed step."""
     async for event in get_orchestra().run(idea, plan_id, model_key):
