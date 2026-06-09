@@ -153,7 +153,7 @@ def _client_for(api_key: str) -> "genai.Client":
     if client is None:
         client = genai.Client(
             api_key=api_key,
-            http_options={'retry_options': {'attempts': 1}, 'timeout': 60000}
+            http_options={'retry_options': {'attempts': 1}, 'timeout': 90}
         )
         _CLIENTS[api_key] = client
     return client

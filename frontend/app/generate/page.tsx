@@ -111,7 +111,7 @@ function GenerateContent() {
   const [redirectNote, setRedirectNote]   = useState("")
   const [stoppedMsg, setStoppedMsg]       = useState<string | null>(null)
   const [models, setModels]          = useState<ModelOption[]>(FALLBACK_MODELS)
-  const [selectedModel, setSelectedModel] = useState<ModelKey>("gemini-3-flash")
+  const [selectedModel, setSelectedModel] = useState<ModelKey>("gemini-2.5-flash")
   const [usedModel, setUsedModel]    = useState<string>("")
   const [modelError, setModelError]  = useState<string | null>(null)
   const ideaRef = useRef(idea)
@@ -419,7 +419,7 @@ function GenerateContent() {
         </div>
       )}
 
-      <div className="max-w-2xl mx-auto px-6 pt-28 pb-20">
+      <div className="max-w-2xl mx-auto px-6 pt-24 pb-20">
 
         {/* ── IDLE STATE ── */}
         {!submitted && (

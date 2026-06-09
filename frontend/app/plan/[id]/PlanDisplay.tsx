@@ -52,7 +52,7 @@ export default function PlanDisplay({ plan }: { plan: BusinessPlan }) {
   return (
     <div style={{ background: "hsl(240,25%,4%)", minHeight: "100vh" }}>
       <Navbar />
-      <div className="max-w-3xl mx-auto px-6 pt-28 pb-20">
+      <div className="max-w-3xl mx-auto px-6 pt-24 pb-20">
 
         {/* Header */}
         <div className="flex justify-between items-start mb-8 gap-4">
