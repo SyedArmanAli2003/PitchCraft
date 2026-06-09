@@ -9,23 +9,26 @@ import { API, type ModelKey, type ModelOption } from "@/lib/config"
 // Static fallback — matches api/agent.py MODEL_CONFIGS
 const FALLBACK_MODELS: ModelOption[] = [
   { key: "gemini-3.5-flash", display: "Gemini 3.5 Flash", tier: 1 },
-  { key: "gemini-2.5-pro",   display: "Gemini 2.5 Pro",   tier: 2 },
-  { key: "gemini-2.5-flash", display: "Gemini 2.5 Flash", tier: 3 },
-  { key: "gemini-2.0-flash", display: "Gemini 2.0 Flash", tier: 4 },
-  { key: "gemini-1.5-flash", display: "Gemini 1.5 Flash", tier: 5 },
+  { key: "gemini-3.1-pro",   display: "Gemini 3.1 Pro",   tier: 2 },
+  { key: "gemini-2.5-pro",   display: "Gemini 2.5 Pro",   tier: 3 },
+  { key: "gemini-2.5-flash", display: "Gemini 2.5 Flash", tier: 4 },
+  { key: "gemini-2.0-flash", display: "Gemini 2.0 Flash", tier: 5 },
+  { key: "gemini-1.5-flash", display: "Gemini 1.5 Flash", tier: 6 },
 ]
 
 const MODEL_ICONS: Record<ModelKey, string> = {
   "gemini-3.5-flash": "✦",
+  "gemini-3.1-pro":   "◈",
   "gemini-2.5-pro":   "◆",
   "gemini-2.5-flash": "⚡",
-  "gemini-2.0-flash": "◈",
+  "gemini-2.0-flash": "▸",
   "gemini-1.5-flash": "◇",
 }
 
 const MODEL_BADGES: Record<ModelKey, { label: string; color: string; bg: string; border: string }> = {
   "gemini-3.5-flash": { label: "Latest · Recommended", color: "hsl(38,95%,72%)",  bg: "rgba(234,179,8,0.15)",  border: "rgba(234,179,8,0.4)"   },
-  "gemini-2.5-pro":   { label: "Most Powerful",         color: "hsl(258,90%,82%)", bg: "rgba(124,58,237,0.18)", border: "rgba(124,58,237,0.4)"  },
+  "gemini-3.1-pro":   { label: "Most Powerful",         color: "hsl(280,90%,82%)", bg: "rgba(168,85,247,0.18)", border: "rgba(168,85,247,0.45)" },
+  "gemini-2.5-pro":   { label: "High Quality",          color: "hsl(258,90%,82%)", bg: "rgba(124,58,237,0.18)", border: "rgba(124,58,237,0.4)"  },
   "gemini-2.5-flash": { label: "Balanced",              color: "hsl(258,80%,78%)", bg: "rgba(124,58,237,0.12)", border: "rgba(124,58,237,0.3)"  },
   "gemini-2.0-flash": { label: "Solid Fallback",        color: "hsl(239,84%,78%)", bg: "rgba(99,102,241,0.12)", border: "rgba(99,102,241,0.3)"  },
   "gemini-1.5-flash": { label: "Fastest",               color: "hsl(262,60%,75%)", bg: "rgba(139,92,246,0.1)",  border: "rgba(139,92,246,0.25)" },
@@ -33,7 +36,8 @@ const MODEL_BADGES: Record<ModelKey, { label: string; color: string; bg: string;
 
 const MODEL_DESC: Record<ModelKey, string> = {
   "gemini-3.5-flash": "Google's newest GA model — near-Pro intelligence at Flash speed. Recommended.",
-  "gemini-2.5-pro":   "Gemini 2.5 Pro — highest quality for complex ideas. Uses more quota.",
+  "gemini-3.1-pro":   "Gemini 3.1 Pro (preview) — Google's most capable reasoning model for complex ideas.",
+  "gemini-2.5-pro":   "Gemini 2.5 Pro — high quality, proven stable. Great for complex ideas.",
   "gemini-2.5-flash": "Gemini 2.5 Flash — ideal balance of speed and quality.",
   "gemini-2.0-flash": "Gemini 2.0 Flash — solid fallback. Great for quick iterations.",
   "gemini-1.5-flash": "Gemini 1.5 Flash — fastest option. Use if other tiers hit rate limits.",

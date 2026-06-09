@@ -91,24 +91,29 @@ MODEL_CONFIGS: dict[str, dict] = {
         "tier": 1,
         "model_id": "gemini-3.5-flash",
     },
+    "gemini-3.1-pro": {
+        "display": "Gemini 3.1 Pro",
+        "tier": 2,
+        "model_id": "gemini-3.1-pro-preview",
+    },
     "gemini-2.5-pro": {
         "display": "Gemini 2.5 Pro",
-        "tier": 2,
+        "tier": 3,
         "model_id": "gemini-2.5-pro",
     },
     "gemini-2.5-flash": {
         "display": "Gemini 2.5 Flash",
-        "tier": 3,
+        "tier": 4,
         "model_id": "gemini-2.5-flash",
     },
     "gemini-2.0-flash": {
         "display": "Gemini 2.0 Flash",
-        "tier": 4,
+        "tier": 5,
         "model_id": "gemini-2.0-flash",
     },
     "gemini-1.5-flash": {
         "display": "Gemini 1.5 Flash",
-        "tier": 5,
+        "tier": 6,
         "model_id": "gemini-1.5-flash",
     },
 }
@@ -116,6 +121,7 @@ MODEL_CONFIGS: dict[str, dict] = {
 # Strict cascade: if chosen model fails, fall to the next tier down
 CASCADE_ORDER = [
     "gemini-3.5-flash",
+    "gemini-3.1-pro",
     "gemini-2.5-pro",
     "gemini-2.5-flash",
     "gemini-2.0-flash",

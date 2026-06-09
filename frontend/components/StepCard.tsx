@@ -20,6 +20,7 @@ type ToolKey = AgentStep["tool"]
 
 const TOOL_BADGE: Record<ToolKey, { label: string; bg: string; color: string; border: string }> = {
   "gemini-3.5-flash": { label: "G3.5 FLASH", bg: "rgba(234,179,8,0.15)",  color: "hsl(38,95%,72%)",    border: "rgba(234,179,8,0.4)"   },
+  "gemini-3.1-pro":   { label: "G3.1 PRO",   bg: "rgba(168,85,247,0.18)", color: "hsl(280,90%,82%)",   border: "rgba(168,85,247,0.4)"  },
   "gemini-2.5-pro":   { label: "G2.5 PRO",   bg: "rgba(124,58,237,0.18)", color: "hsl(258,90%,82%)",   border: "rgba(124,58,237,0.4)"  },
   "gemini-2.5-flash": { label: "G2.5 FLASH", bg: "rgba(124,58,237,0.12)", color: "hsl(258,80%,78%)",   border: "rgba(124,58,237,0.28)" },
   "gemini-2.0-flash": { label: "G2.0",       bg: "rgba(99,102,241,0.12)", color: "hsl(239,84%,78%)",   border: "rgba(99,102,241,0.28)" },
