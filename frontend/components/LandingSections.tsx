@@ -175,6 +175,96 @@ export function AgentsSection() {
   )
 }
 
+// ─── Section: Example Plans ──────────────────────────────────────────────── //
+const EXAMPLES = [
+  {
+    idea: "AI tutoring for rural India",
+    fullIdea: "An offline-first AI tutoring app for rural India that works in 12 vernacular languages",
+    industry: "EdTech",
+    score: 8,
+    year3: "$5M Year 3",
+    blurb: "Offline-first vernacular AI tutor at ₹99/month — grounded in MongoDB EdTech benchmarks.",
+    accent: "rgba(234,179,8,0.4)",
+  },
+  {
+    idea: "P2P photography gear rental",
+    fullIdea: "A peer-to-peer marketplace where photographers rent out their cameras and lenses to other creators",
+    industry: "Marketplace",
+    score: 7,
+    year3: "$2M Year 3",
+    blurb: "Idle camera gear becomes income — insurance-backed rentals between verified creators.",
+    accent: "rgba(124,58,237,0.45)",
+  },
+  {
+    idea: "Hyperlocal grocery delivery",
+    fullIdea: "A hyperlocal grocery delivery service connecting neighbourhood kirana stores with customers in 15 minutes",
+    industry: "Logistics",
+    score: 9,
+    year3: "$8M Year 3",
+    blurb: "Kirana stores as dark stores — 15-minute delivery without burning VC money on warehouses.",
+    accent: "rgba(34,197,94,0.4)",
+  },
+]
+
+export function ExamplesSection() {
+  const router = useRouter()
+  return (
+    <section
+      className="py-24 px-6 md:px-14"
+      style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
+    >
+      <div className="max-w-5xl mx-auto">
+        <p className="text-xs uppercase tracking-widest mb-4 text-center" style={{ color: "rgba(255,255,255,0.25)" }}>
+          Example plans
+        </p>
+        <h2
+          className="text-center font-bold mb-12 leading-tight"
+          style={{ fontSize: "clamp(1.9rem,4vw,3rem)", color: "rgba(255,255,255,0.95)" }}
+        >
+          See what the agents
+          <br />
+          <span style={{ color: "hsl(258,85%,74%)" }}>can build.</span>
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {EXAMPLES.map(ex => (
+            <div
+              key={ex.idea}
+              className="rounded-2xl p-6 flex flex-col transition-all duration-200 hover:scale-[1.02]"
+              style={{ background: "hsl(240,15%,8%)", border: "1px solid rgba(255,255,255,0.06)", borderTop: `2px solid ${ex.accent}` }}
+            >
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <span className="text-xs px-2 py-0.5 rounded-full"
+                  style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  {ex.industry}
+                </span>
+                <span className="text-xs px-2 py-0.5 rounded-full"
+                  style={{ background: "rgba(34,197,94,0.12)", color: "rgb(74,222,128)", border: "1px solid rgba(34,197,94,0.25)" }}>
+                  Score {ex.score}/10
+                </span>
+              </div>
+              <p className="text-white font-semibold mb-2">{ex.idea}</p>
+              <p className="text-sm leading-relaxed mb-4 flex-1" style={{ color: "rgba(255,255,255,0.45)" }}>{ex.blurb}</p>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium" style={{ color: "hsl(258,80%,78%)" }}>{ex.year3}</span>
+                <button
+                  onClick={() => router.push(`/generate?idea=${encodeURIComponent(ex.fullIdea)}`)}
+                  className="text-xs font-semibold cursor-pointer transition-colors bg-transparent border-0 p-0"
+                  style={{ color: "rgba(255,255,255,0.55)" }}
+                  onMouseEnter={e => (e.currentTarget.style.color = "white")}
+                  onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.55)")}
+                >
+                  Generate this plan →
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 // ─── Section: Features ───────────────────────────────────────────────────── //
 export function FeaturesSection() {
   return (

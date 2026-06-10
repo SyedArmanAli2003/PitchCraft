@@ -10,14 +10,14 @@ const FALLBACK_MODELS: ModelOption[] = [
   { key: "gemini-3.5-flash", display: "Gemini 3.5 Flash", tier: 1 },
   { key: "gemini-2.5-pro",   display: "Gemini 2.5 Pro",   tier: 2 },
   { key: "gemini-2.5-flash", display: "Gemini 2.5 Flash", tier: 3 },
-  { key: "gemini-1.5-flash", display: "Gemini 1.5 Flash", tier: 4 },
+  { key: "gemini-2.0-flash", display: "Gemini 2.0 Flash", tier: 4 },
 ]
 
 // ── Demo / offline fallback ──────────────────────────────────────────────────
 // If the live backend (e.g. Railway/Cloud Run cold start) doesn't stream a
 // first event within this window, we replay a pre-built plan so judges always
 // see a working multi-agent run. Borrowed from the RecallOps Cortex pattern.
-const DEMO_FALLBACK_MS = 8000   // 8s to first SSE event, else go to demo
+const DEMO_FALLBACK_MS = 60000  // 60s to first SSE event, else go to demo
 const DEMO_STEP_DELAY_MS = 1500 // pace between replayed steps
 
 const DEMO_TOOLS: Record<number, AgentStep["tool"]> = {
@@ -179,7 +179,7 @@ function ModelSelector({
       <p className="text-xs uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.35)" }}>
         Choose Gemini Model
       </p>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {models.map(m => {
           const isSelected = m.key === selected
           const badge = MODEL_BADGES[m.key]
@@ -262,8 +262,10 @@ function GenerateContent() {
       .catch(() => { /* use fallback */ })
   }, [])
 
-  // Demo mode
+  // Demo mode + idea prefill from landing-page example cards (?idea=...)
   useEffect(() => {
+    const prefill = searchParams.get("idea")
+    if (prefill) setIdea(prefill.slice(0, 200))
     if (searchParams.get("demo") === "true") {
       const demoIdea = "A medicine delivery app for rural villages in India"
       setIdea(demoIdea)
@@ -362,8 +364,8 @@ function GenerateContent() {
     let firstEvent = false
     let switchedToDemo = false
 
-    // Fall back to the replayed demo plan. Cancels the live stream so a cold or
-    // unreachable backend never blocks the on-stage demo.
+    // Only go to demo if the backend is completely unreachable (no network connection).
+    // Model errors, quota errors, etc. should show a proper error message.
     const goDemo = () => {
       if (switchedToDemo || runIdRef.current !== myRun) return
       switchedToDemo = true
@@ -372,7 +374,7 @@ function GenerateContent() {
       runDemoMode(myRun)
     }
 
-    // 8s watchdog: if the stream hasn't produced a first event, go to demo.
+    // Watchdog: if no first event within DEMO_FALLBACK_MS, the backend is cold/unreachable.
     const watchdog = setTimeout(() => {
       if (!firstEvent) goDemo()
     }, DEMO_FALLBACK_MS)
@@ -385,9 +387,16 @@ function GenerateContent() {
         signal: controller.signal,
       })
 
+      // Backend responded — it's alive, cancel watchdog.
+      clearTimeout(watchdog)
+      firstEvent = true
+
       if (!res.ok) {
-        // 4xx/5xx (rate limit, validation, server error) → fall back to demo
-        throw new Error(`HTTP ${res.status}`)
+        // Rate-limited or server error — show a real error, don't go to demo.
+        const err = await res.json().catch(() => ({ detail: `Server error (HTTP ${res.status})` }))
+        setModelError(err.detail || err.error || `HTTP ${res.status} — please try again.`)
+        setSteps(prev => prev.map(s => s.status === "running" ? { ...s, status: "error" } : s))
+        return
       }
 
       const id = res.headers.get("X-Plan-ID")
@@ -413,11 +422,18 @@ function GenerateContent() {
           let event: Record<string, unknown>
           try { event = JSON.parse(line.slice(6)) } catch { continue }
 
-          // First real event proves the backend is alive — stand down the watchdog.
+          // Any event (incl. step 0 "Init") proves backend is alive — cancel watchdog.
           if (!firstEvent) { firstEvent = true; clearTimeout(watchdog) }
 
-          // Top-level backend error event → demo fallback rather than a dead end.
-          if (event.error) { goDemo(); streamDone = true; break }
+          // Top-level backend error (e.g. all models exhausted) — show error banner.
+          if (event.error) {
+            setModelError(
+              `Generation failed: ${event.error}. All Gemini models in the cascade were exhausted — please try again in a few minutes.`
+            )
+            setSteps(prev => prev.map(s => s.status === "running" ? { ...s, status: "error" } : s))
+            streamDone = true
+            break
+          }
 
           const step = event.step as number | string
           const status = event.status as string
@@ -449,6 +465,9 @@ function GenerateContent() {
             continue
           }
 
+          // Skip step 0 Init event — it's just a liveness ping.
+          if (step === 0) continue
+
           // ── Cascade fallback detected — relabel remaining step badges ──
           if (data?._fallback) {
             const fallbackKey = data._fallback as ModelKey
@@ -476,10 +495,12 @@ function GenerateContent() {
             break
           }
 
-          // A step erroring means the cascade exhausted every Gemini tier — drop
-          // into the demo so the run still finishes in front of an audience.
+          // Step error — show banner with retry option, don't go to demo.
           if (status === "error") {
-            goDemo()
+            const errMsg = (data?.error as string) || (data?.message as string) || ""
+            setModelError(
+              `Step ${step} failed${errMsg ? `: ${errMsg}` : ""}. All Gemini models were tried — please wait a minute and retry.`
+            )
             streamDone = true
             break
           }
@@ -498,12 +519,20 @@ function GenerateContent() {
         }
       }
       try { await reader.cancel() } catch { /* already closed */ }
-    } catch {
+    } catch (err) {
       clearTimeout(watchdog)
-      // Aborted for the demo handoff (or superseded by a newer run) — nothing to do.
+      // Aborted for demo handoff or superseded by a newer run — nothing to do.
       if (switchedToDemo || controller.signal.aborted || runIdRef.current !== myRun) return
-      // Any genuine failure (backend unreachable, network drop) → demo fallback.
-      goDemo()
+      // Network error / backend completely unreachable → demo fallback.
+      const isNetworkError = err instanceof TypeError && err.message.toLowerCase().includes("fetch")
+      if (isNetworkError) {
+        goDemo()
+      } else {
+        setModelError(
+          "Cannot reach the backend server. Make sure uvicorn is running: cd backend && uvicorn index:app --reload --port 8000"
+        )
+        setSteps(prev => prev.map(s => s.status === "running" ? { ...s, status: "error" } : s))
+      }
       return
     } finally {
       clearTimeout(watchdog)
@@ -748,6 +777,8 @@ function GenerateContent() {
             />
 
             <button
+              id="analyze-btn"
+              data-testid="analyze-btn"
               onClick={() => startGeneration(idea)}
               disabled={!idea.trim() || isStreaming}
               className="w-full py-4 rounded-xl font-semibold text-white text-sm cursor-pointer transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -799,9 +830,16 @@ function GenerateContent() {
                     )}
                   </div>
                 </div>
-                <p className="text-xs flex-shrink-0 ml-4 mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-                  {completedCount}/7
-                </p>
+                <div className="text-right flex-shrink-0 ml-4 mt-1">
+                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    Step {Math.min(completedCount + 1, 7)} of 7 · {Math.round((completedCount / 7) * 100)}%
+                  </p>
+                  {isStreaming && completedCount < 7 && (
+                    <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)" }}>
+                      ~{(7 - completedCount) * 8}s remaining
+                    </p>
+                  )}
+                </div>
               </div>
               <div className="w-full h-1 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
                 <div className="h-full rounded-full transition-all duration-700"

@@ -237,6 +237,15 @@ async def verify_plan_audit(plan_id: str):
     return verify_audit_chain(record.get("chain", []), reconstruct_steps_from_plan(plan), plan_id)
 
 
+@app.get("/api/approvals")
+async def list_approvals(status: str | None = None):
+    """List approval requests. Optional query param `status` filters by status."""
+    from mongodb import list_approval_requests
+
+    approvals = list_approval_requests(status)
+    return approvals
+
+
 @app.get("/api/approval/{approval_id}")
 async def get_approval(approval_id: str):
     """Current status of a human-in-the-loop approval request."""

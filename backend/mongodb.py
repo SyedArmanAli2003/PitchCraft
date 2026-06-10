@@ -418,6 +418,29 @@ def get_approval_request(approval_id: str) -> dict | None:
     return dict(mem) if mem else None
 
 
+def list_approval_requests(status: str | None = None) -> list[dict]:
+    """List approval requests. If `status` is provided, filter by status.
+    Falls back to in-memory approvals when the DB is not available.
+    """
+    col = _approval_collection()
+    results: list[dict] = []
+    if col is not None:
+        try:
+            query = {"status": status} if status else {}
+            docs = list(col.find(query).sort("created_at", -1))
+            for d in docs:
+                d["_id"] = str(d["_id"])
+                results.append(d)
+            return results
+        except Exception:
+            pass
+    # fallback to in-memory
+    for d in list(_MEMORY_APPROVALS.values()):
+        if status is None or d.get("status") == status:
+            results.append(dict(d))
+    return results
+
+
 def resolve_approval(approval_id: str, approved: bool, direction_override: str | None) -> bool:
     """Mark an approval request approved/rejected. Returns True if a matching
     request was found and updated."""

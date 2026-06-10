@@ -84,6 +84,8 @@ def _load_api_keys() -> list[str]:
 # ---------------------------------------------------------------------------
 # Model registry — 4 Gemini tiers
 # ---------------------------------------------------------------------------
+# NOTE: gemini-1.5-flash has been RETIRED from the v1beta API (returns 404).
+# gemini-2.0-flash IS available and serves as the guaranteed last-resort fallback.
 
 MODEL_CONFIGS: dict[str, dict] = {
     "gemini-3.5-flash": {
@@ -101,20 +103,20 @@ MODEL_CONFIGS: dict[str, dict] = {
         "tier": 3,
         "model_id": "gemini-2.5-flash",
     },
-    "gemini-1.5-flash": {
-        "display": "Gemini 1.5 Flash",
+    "gemini-2.0-flash": {
+        "display": "Gemini 2.0 Flash",
         "tier": 4,
-        "model_id": "gemini-1.5-flash",
+        "model_id": "gemini-2.0-flash",
     },
 }
 
 # Strict cascade: if chosen model fails, fall through every tier until one works.
-# gemini-2.0-flash was retired on June 1 2026 — not included.
+# gemini-1.5-flash retired June 2026 (404 on v1beta) — replaced with gemini-2.0-flash.
 CASCADE_ORDER = [
     "gemini-3.5-flash",
     "gemini-2.5-pro",
     "gemini-2.5-flash",
-    "gemini-1.5-flash",
+    "gemini-2.0-flash",
 ]
 
 
@@ -161,7 +163,7 @@ def _client_for(api_key: str) -> "genai.Client":
 
 
 # Only 2.5-series and 3.x models have a thinking mode that must be disabled for
-# forced-JSON output. Sending ThinkingConfig to 1.5-series causes an API error.
+# forced-JSON output. Sending ThinkingConfig to 1.x or 2.0-series causes an API error.
 _THINKING_MODEL_PREFIXES = ("gemini-2.5", "gemini-3.")
 
 
@@ -190,13 +192,28 @@ def _call_single(prompt: str, model_id: str, api_key: str) -> dict:
 
 
 def _call_with_key_rotation(prompt: str, model_id: str, keys: list[str]) -> dict:
-    """Try each API key in sequence; only rotate on quota/rate-limit errors."""
+    """Try each API key in sequence; only rotate on quota/rate-limit errors.
+    Retries once on 503 Service Unavailable before rotating.
+    """
     last_err: Exception | None = None
     for key in keys:
         try:
             return _call_single(prompt, model_id, key)
         except Exception as e:
-            err_lower = str(e).lower()
+            err_str = str(e)
+            err_lower = err_str.lower()
+            if "503" in err_str or "service_unavailable" in err_lower or "overloaded" in err_lower:
+                # Transient overload — wait a moment and retry the same key once
+                import time; time.sleep(5)
+                try:
+                    return _call_single(prompt, model_id, key)
+                except Exception as e2:
+                    err_str = str(e2)
+                    err_lower = err_str.lower()
+                    if any(tok in err_lower for tok in ("429", "quota", "rate_limit", "resource_exhausted")):
+                        last_err = e2
+                        continue
+                    raise
             if any(tok in err_lower for tok in ("429", "quota", "rate_limit", "resource_exhausted")):
                 last_err = e
                 continue  # try next key
@@ -207,12 +224,14 @@ def _call_with_key_rotation(prompt: str, model_id: str, keys: list[str]) -> dict
 async def _generate(prompt: str, model_key: str, keys: list[str]) -> tuple[dict, str]:
     """
     Try the chosen Gemini tier, then cascade to lower tiers on any failure.
+    On a quota failure, waits 12 s before the next tier so the per-minute
+    window has a chance to partially reset.
     Returns (result_dict, actually_used_model_key).
     """
     start = CASCADE_ORDER.index(model_key) if model_key in CASCADE_ORDER else 0
     last_err: Exception | None = None
 
-    for candidate in CASCADE_ORDER[start:]:
+    for i, candidate in enumerate(CASCADE_ORDER[start:]):
         try:
             cfg = MODEL_CONFIGS[candidate]
             result = await asyncio.to_thread(
@@ -220,8 +239,13 @@ async def _generate(prompt: str, model_key: str, keys: list[str]) -> tuple[dict,
             )
             return result, candidate
         except Exception as e:
-            print(f"⚠️  Cascade: {cfg['model_id']} failed: {type(e).__name__}: {e}")
+            err_lower = str(e).lower()
+            is_quota = any(tok in err_lower for tok in ("429", "quota", "rate_limit", "resource_exhausted"))
+            print(f"⚠️  Cascade: {cfg['model_id']} failed ({type(e).__name__}) quota={is_quota}")
             last_err = e
+            # Brief pause between tiers when rate-limited — lets the 1-min window reset a bit.
+            if is_quota and i < len(CASCADE_ORDER) - 1:
+                await asyncio.sleep(12)
 
     raise last_err or RuntimeError("All Gemini models in the cascade failed.")
 
@@ -774,6 +798,18 @@ class PitchCraftOrchestra:
         keys = _load_api_keys()
         update_plan(plan_id, "status", "generating")
         update_plan(plan_id, "model", MODEL_CONFIGS.get(model_key, {}).get("display", model_key))
+
+        # Emit a very small initial event immediately so clients know the
+        # backend is alive and won't fall back to the demo replay during cold
+        # starts or slow model responses. The frontend treats any first event
+        # as proof of liveness and cancels its demo watchdog.
+        yield {
+            "step": 0,
+            "name": "Init",
+            "status": "running",
+            "specialist": "Orchestra",
+            "data": {"message": "orchestra started"},
+        }
 
         ctx: dict = {"idea": idea, "plan_id": plan_id, "model_key": model_key}
         audit_steps: list[dict] = []

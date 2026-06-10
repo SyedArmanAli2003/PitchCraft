@@ -4,6 +4,7 @@ import HeroSection from "@/components/HeroSection"
 import {
   HowItWorksSection,
   AgentsSection,
+  ExamplesSection,
   FeaturesSection,
   CtaSection,
   FooterSection,
@@ -16,6 +17,7 @@ export default function HomePage() {
       <HeroSection />
       <HowItWorksSection />
       <AgentsSection />
+      <ExamplesSection />
       <FeaturesSection />
       <CtaSection />
       <FooterSection />
