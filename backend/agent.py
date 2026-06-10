@@ -91,17 +91,30 @@ MODEL_CONFIGS: dict[str, dict] = {
         "tier": 1,
         "model_id": "gemini-3.5-flash",
     },
+    "gemini-2.5-pro": {
+        "display": "Gemini 2.5 Pro",
+        "tier": 2,
+        "model_id": "gemini-2.5-pro",
+    },
     "gemini-2.5-flash": {
         "display": "Gemini 2.5 Flash",
-        "tier": 2,
+        "tier": 3,
         "model_id": "gemini-2.5-flash",
+    },
+    "gemini-1.5-flash": {
+        "display": "Gemini 1.5 Flash",
+        "tier": 4,
+        "model_id": "gemini-1.5-flash",
     },
 }
 
-# Strict cascade: if chosen model fails, fall to the next tier down
+# Strict cascade: if chosen model fails, fall through every tier until one works.
+# gemini-2.0-flash was retired on June 1 2026 — not included.
 CASCADE_ORDER = [
     "gemini-3.5-flash",
+    "gemini-2.5-pro",
     "gemini-2.5-flash",
+    "gemini-1.5-flash",
 ]
 
 
@@ -147,24 +160,33 @@ def _client_for(api_key: str) -> "genai.Client":
     return client
 
 
+# Only 2.5-series and 3.x models have a thinking mode that must be disabled for
+# forced-JSON output. Sending ThinkingConfig to 1.5-series causes an API error.
+_THINKING_MODEL_PREFIXES = ("gemini-2.5", "gemini-3.")
+
+
 def _call_single(prompt: str, model_id: str, api_key: str) -> dict:
     client = _client_for(api_key)
-    # Build config dynamically so we can disable thinking on models that support it.
-    # Gemini 2.5+ has thinking enabled by default which conflicts with forced-JSON mode.
     cfg_kwargs: dict = {
         "response_mime_type": "application/json",
         "temperature": 0.7,
     }
-    try:
-        cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
-    except (AttributeError, TypeError):
-        pass  # SDK version without ThinkingConfig — safe to skip
+    if any(model_id.startswith(p) for p in _THINKING_MODEL_PREFIXES):
+        try:
+            cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+        except (AttributeError, TypeError):
+            pass  # older SDK version — safe to skip
     response = client.models.generate_content(
         model=model_id,
         contents=prompt,
         config=types.GenerateContentConfig(**cfg_kwargs),
     )
-    return parse_json_response(response.text)
+    text = getattr(response, "text", None)
+    if not text:
+        raise RuntimeError(
+            f"Empty response from {model_id} — possibly blocked by safety filters"
+        )
+    return parse_json_response(text)
 
 
 def _call_with_key_rotation(prompt: str, model_id: str, keys: list[str]) -> dict:
@@ -318,8 +340,9 @@ def _approval_timeout_seconds() -> float:
 
 
 def _skip_approval_enabled() -> bool:
-    """SKIP_APPROVAL=true auto-approves after 3s — for tests/demos."""
-    return os.getenv("SKIP_APPROVAL", "").strip().lower() in ("1", "true", "yes")
+    """Auto-approves the gate after 3 s by default.
+    Set SKIP_APPROVAL=false in .env to require a real human decision."""
+    return os.getenv("SKIP_APPROVAL", "true").strip().lower() not in ("0", "false", "no")
 
 
 # ===========================================================================

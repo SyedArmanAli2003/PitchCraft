@@ -8,7 +8,9 @@ import { API, type ModelKey, type ModelOption } from "@/lib/config"
 
 const FALLBACK_MODELS: ModelOption[] = [
   { key: "gemini-3.5-flash", display: "Gemini 3.5 Flash", tier: 1 },
-  { key: "gemini-2.5-flash", display: "Gemini 2.5 Flash", tier: 2 },
+  { key: "gemini-2.5-pro",   display: "Gemini 2.5 Pro",   tier: 2 },
+  { key: "gemini-2.5-flash", display: "Gemini 2.5 Flash", tier: 3 },
+  { key: "gemini-1.5-flash", display: "Gemini 1.5 Flash", tier: 4 },
 ]
 
 // ── Demo / offline fallback ──────────────────────────────────────────────────
