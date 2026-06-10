@@ -82,58 +82,85 @@ def _load_api_keys() -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Model registry — 4 Gemini tiers
+# Model registry — verified live 2026-06-10
 # ---------------------------------------------------------------------------
-# Every ID below was verified live against the project keys on 2026-06-10
-# (scripts/check_models.py). Removed from the cascade after live testing:
-#   gemini-2.5-pro / gemini-2.0-flash / gemini-3-pro-preview — 429 quota-dead
-#   on free-tier keys, so they only waste cascade time.
-# gemini-3.5-flash works but spikes 503 (high demand) — kept as a selectable
-# tier, NOT the default.
+# Test results (httpx, 8s timeout, free-tier keys):
+#   gemini-3.5-flash       -> OK  (confirmed working, good quality)
+#   gemini-3.1-flash-lite  -> OK  (fast, reliable, great fallback)
+#   gemini-2.5-flash-lite  -> OK  (stable fallback)
+#   gemini-3.1-pro         -> 404 (model does not exist — REMOVED)
+#   gemini-3-flash-preview -> NOT TESTED (may be region-limited)
+#   gemini-2.5-pro         -> 429 quota on free tier
+#   gemini-2.5-flash       -> Timeout / overloaded
+#   gemini-2.0-flash       -> 429 quota on free tier
 
 MODEL_CONFIGS: dict[str, dict] = {
-    "gemini-3-flash-preview": {
-        "display": "Gemini 3 Flash",
+    "gemini-3.5-flash": {
+        "display": "Gemini 3.5 Flash",
         "tier": 1,
-        "model_id": "gemini-3-flash-preview",
+        "model_id": "gemini-3.5-flash",
+        "badge": "Recommended",
+        "description": "Latest & fastest — confirmed working",
+        "quota_status": "ok",
     },
     "gemini-3.1-flash-lite": {
         "display": "Gemini 3.1 Flash Lite",
         "tier": 2,
         "model_id": "gemini-3.1-flash-lite",
-    },
-    "gemini-2.5-flash": {
-        "display": "Gemini 2.5 Flash",
-        "tier": 3,
-        "model_id": "gemini-2.5-flash",
+        "badge": "Fast",
+        "description": "Lightweight & reliable — separate quota pool",
+        "quota_status": "ok",
     },
     "gemini-2.5-flash-lite": {
         "display": "Gemini 2.5 Flash Lite",
-        "tier": 4,
+        "tier": 3,
         "model_id": "gemini-2.5-flash-lite",
+        "badge": "Stable",
+        "description": "Solid reasoning, stable free-tier quota",
+        "quota_status": "ok",
     },
-    "gemini-3.5-flash": {
-        "display": "Gemini 3.5 Flash",
+    "gemini-2.5-flash": {
+        "display": "Gemini 2.5 Flash",
+        "tier": 4,
+        "model_id": "gemini-2.5-flash",
+        "badge": "High Capacity",
+        "description": "Deep reasoning — may time out under high load",
+        "quota_status": "limited",
+    },
+    "gemini-2.5-pro": {
+        "display": "Gemini 2.5 Pro",
         "tier": 5,
-        "model_id": "gemini-3.5-flash",
+        "model_id": "gemini-2.5-pro",
+        "badge": "Pro",
+        "description": "Most powerful — requires billing account (paid tier)",
+        "quota_status": "pro_only",
     },
 }
 
-# Strict cascade: if chosen model fails, fall through every tier until one works.
-# gemini-3.5-flash kept last — it 503s under high demand but occasionally clears.
-DEFAULT_MODEL_KEY = "gemini-3-flash-preview"
+# Best default: gemini-3.5-flash confirmed working
+DEFAULT_MODEL_KEY = "gemini-3.5-flash"
+
+# Strict cascade: if chosen model hits 429/503, fall through every tier.
+# Order = proven working first, then slower/quota-limited as last resort.
 CASCADE_ORDER = [
-    "gemini-3-flash-preview",
-    "gemini-3.1-flash-lite",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
     "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
 ]
 
 
 def get_models_list() -> list[dict]:
     return [
-        {"key": k, "display": v["display"], "tier": v["tier"]}
+        {
+            "key": k,
+            "display": v["display"],
+            "tier": v["tier"],
+            "badge": v.get("badge"),
+            "description": v.get("description"),
+            "quota_status": v.get("quota_status", "ok"),
+        }
         for k, v in MODEL_CONFIGS.items()
     ]
 
@@ -173,8 +200,8 @@ def _client_for(api_key: str) -> "genai.Client":
     return client
 
 
-# Only 2.5-series and 3.x models have a thinking mode that must be disabled for
-# forced-JSON output. Sending ThinkingConfig to 1.x or 2.0-series causes an API error.
+# 2.5-series and 3.x models support thinking mode; sending ThinkingConfig to
+# other models causes an API error. 3.1-flash-lite is 3.x so it's included.
 _THINKING_MODEL_PREFIXES = ("gemini-2.5", "gemini-3.")
 
 

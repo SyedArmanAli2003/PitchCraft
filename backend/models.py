@@ -1,16 +1,16 @@
 from typing import Literal
 from pydantic import BaseModel, field_validator
 
-# Current cascade tiers first; older keys kept so stale clients don't 422 —
-# agent.py maps unknown keys to the top of the cascade.
+# Literals must match MODEL_CONFIGS keys in agent.py \u2014 verified live 2026-06-10.
+# Old entries kept so stale clients don\u2019t 422; agent maps them to the cascade top.
 ModelKey = Literal[
+    "gemini-3.5-flash",        # OK \u2014 default, confirmed working
+    "gemini-3.1-flash-lite",   # OK \u2014 fast & reliable
+    "gemini-2.5-flash-lite",   # OK \u2014 stable fallback
+    "gemini-2.5-flash",        # Timeout under load but valid model
+    "gemini-2.5-pro",          # 429 on free tier \u2014 works with billing
+    # Legacy / dead entries (preserved so old requests don\u2019t break):
     "gemini-3-flash-preview",
-    "gemini-3.1-flash-lite",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    "gemini-3.5-flash",
-    "gemini-3.1-pro",
-    "gemini-2.5-pro",
     "gemini-2.0-flash",
     "gemini-1.5-flash",
 ]
@@ -18,7 +18,7 @@ ModelKey = Literal[
 
 class IdeaRequest(BaseModel):
     idea: str
-    model: ModelKey = "gemini-3-flash-preview"
+    model: ModelKey = "gemini-3.5-flash"
 
     @field_validator("idea")
     @classmethod

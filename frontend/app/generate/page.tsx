@@ -6,12 +6,51 @@ import StepCard from "@/components/StepCard"
 import type { AgentStep } from "@/lib/types"
 import { API, type ModelKey, type ModelOption } from "@/lib/config"
 
+// Verified live 2026-06-10 (httpx 8s timeout test):
+//   gemini-3.5-flash      -> OK   | gemini-3.1-flash-lite -> OK
+//   gemini-2.5-flash-lite -> OK   | gemini-2.5-flash -> Timeout (valid but slow)
+//   gemini-3.1-pro        -> 404 (removed) | gemini-2.0-flash -> 429 (removed)
 const FALLBACK_MODELS: ModelOption[] = [
-  { key: "gemini-3-flash-preview", display: "Gemini 3 Flash",        tier: 1 },
-  { key: "gemini-3.1-flash-lite",  display: "Gemini 3.1 Flash Lite", tier: 2 },
-  { key: "gemini-2.5-flash",       display: "Gemini 2.5 Flash",      tier: 3 },
-  { key: "gemini-2.5-flash-lite",  display: "Gemini 2.5 Flash Lite", tier: 4 },
-  { key: "gemini-3.5-flash",       display: "Gemini 3.5 Flash",      tier: 5 },
+  {
+    key: "gemini-3.5-flash",
+    display: "Gemini 3.5 Flash",
+    tier: 1,
+    badge: "Recommended",
+    description: "Latest & fastest — confirmed working",
+    quota_status: "ok",
+  },
+  {
+    key: "gemini-3.1-flash-lite",
+    display: "Gemini 3.1 Flash Lite",
+    tier: 2,
+    badge: "Fast",
+    description: "Lightweight & reliable",
+    quota_status: "ok",
+  },
+  {
+    key: "gemini-2.5-flash-lite",
+    display: "Gemini 2.5 Flash Lite",
+    tier: 3,
+    badge: "Stable",
+    description: "Solid reasoning, stable quota",
+    quota_status: "ok",
+  },
+  {
+    key: "gemini-2.5-flash",
+    display: "Gemini 2.5 Flash",
+    tier: 4,
+    badge: "Deep Reasoning",
+    description: "May be slower under high demand",
+    quota_status: "limited",
+  },
+  {
+    key: "gemini-2.5-pro",
+    display: "Gemini 2.5 Pro",
+    tier: 5,
+    badge: "Pro",
+    description: "Most powerful — requires billing account",
+    quota_status: "pro_only",
+  },
 ]
 
 // ── Demo / offline fallback ──────────────────────────────────────────────────
@@ -139,27 +178,27 @@ const DEMO_PLAN: { idea: string; steps: Array<{ step: number; name: string; data
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 const MODEL_ICONS: Partial<Record<ModelKey, string>> = {
-  "gemini-3-flash-preview": "✦",
-  "gemini-3.1-flash-lite":  "✧",
-  "gemini-2.5-flash":       "⚡",
-  "gemini-2.5-flash-lite":  "▸",
   "gemini-3.5-flash":       "◈",
+  "gemini-3.1-flash-lite":  "✧",
+  "gemini-2.5-flash-lite":  "▸",
+  "gemini-2.5-flash":       "⚡",
+  "gemini-2.5-pro":         "★",
 }
 
 const MODEL_BADGES: Partial<Record<ModelKey, { label: string; color: string; bg: string; border: string }>> = {
-  "gemini-3-flash-preview": { label: "Gemini 3 · Recommended", color: "hsl(38,95%,72%)",  bg: "rgba(234,179,8,0.15)",  border: "rgba(234,179,8,0.4)"   },
-  "gemini-3.1-flash-lite":  { label: "Gemini 3.1 · New",       color: "hsl(160,90%,72%)", bg: "rgba(16,185,129,0.15)", border: "rgba(16,185,129,0.4)"  },
-  "gemini-2.5-flash":       { label: "Balanced",                color: "hsl(258,80%,78%)", bg: "rgba(124,58,237,0.12)", border: "rgba(124,58,237,0.3)"  },
-  "gemini-2.5-flash-lite":  { label: "Fastest",                 color: "hsl(239,84%,78%)", bg: "rgba(99,102,241,0.12)", border: "rgba(99,102,241,0.3)"  },
-  "gemini-3.5-flash":       { label: "High demand",             color: "hsl(280,90%,82%)", bg: "rgba(168,85,247,0.18)", border: "rgba(168,85,247,0.45)" },
+  "gemini-3.5-flash":       { label: "✅ Recommended · Working",     color: "hsl(160,90%,72%)",  bg: "rgba(34,197,94,0.12)",  border: "rgba(34,197,94,0.35)"   },
+  "gemini-3.1-flash-lite":  { label: "✅ Fast · Working",            color: "hsl(213,95%,78%)",  bg: "rgba(59,130,246,0.12)", border: "rgba(59,130,246,0.35)"  },
+  "gemini-2.5-flash-lite":  { label: "✅ Stable · Working",          color: "hsl(258,80%,78%)",  bg: "rgba(124,58,237,0.12)", border: "rgba(124,58,237,0.3)"   },
+  "gemini-2.5-flash":       { label: "⚠️ May timeout under load",   color: "hsl(38,95%,72%)",   bg: "rgba(234,179,8,0.12)",  border: "rgba(234,179,8,0.35)"  },
+  "gemini-2.5-pro":         { label: "🔒 Requires billing account",  color: "hsl(280,90%,82%)",  bg: "rgba(168,85,247,0.12)", border: "rgba(168,85,247,0.35)" },
 }
 
 const MODEL_DESC: Partial<Record<ModelKey, string>> = {
-  "gemini-3-flash-preview": "Gemini 3 Flash — fast, reliable, and what the hackathon is built around. Recommended.",
-  "gemini-3.1-flash-lite":  "Gemini 3.1 Flash Lite — upgraded Gemini 3 architecture, lighter and verified fast.",
-  "gemini-2.5-flash":       "Gemini 2.5 Flash — proven stable balance of speed and quality.",
-  "gemini-2.5-flash-lite":  "Gemini 2.5 Flash Lite — fastest option with generous rate limits.",
-  "gemini-3.5-flash":       "Gemini 3.5 Flash — high capability but currently experiencing high demand (503).",
+  "gemini-3.5-flash":       "Latest Gemini Flash — confirmed working. Best quality output.",
+  "gemini-3.1-flash-lite":  "Lightweight Gemini 3.1 — fast, reliable, separate quota pool.",
+  "gemini-2.5-flash-lite":  "Gemini 2.5 Flash Lite — solid reasoning, stable free-tier quota.",
+  "gemini-2.5-flash":       "Deep reasoning model — may time out under high load. Try if others fail.",
+  "gemini-2.5-pro":         "Most powerful model — requires a Google Cloud billing account (paid tier).",
 }
 
 function ModelSelector({
@@ -204,9 +243,19 @@ function ModelSelector({
                 <span className="text-sm font-semibold" style={{ color: isSelected ? "white" : "rgba(255,255,255,0.75)" }}>
                   {m.display}
                 </span>
+                {/* Quota status dot */}
+                {m.quota_status === "ok" && (
+                  <span className="ml-auto text-xs" title="Working — free tier quota available" style={{ color: "rgb(74,222,128)" }}>✓</span>
+                )}
+                {m.quota_status === "limited" && (
+                  <span className="ml-auto text-xs" title="May hit quota limits or timeout" style={{ color: "rgb(250,204,21)" }}>⚠</span>
+                )}
+                {m.quota_status === "pro_only" && (
+                  <span className="ml-auto text-xs" title="Requires billing account" style={{ color: "rgb(168,85,247)" }}>🔒</span>
+                )}
               </div>
               <p className="text-xs leading-snug mb-2" style={{ color: "rgba(255,255,255,0.35)" }}>
-                {MODEL_DESC[m.key] || "A capable Gemini model."}
+                {m.description || MODEL_DESC[m.key] || "A capable Gemini model."}
               </p>
               {badge && (
                 <span className="inline-block text-xs px-2 py-0.5 rounded-full"
@@ -241,7 +290,7 @@ function GenerateContent() {
   const [redirectMode, setRedirectMode]   = useState(false)
   const [stoppedMsg, setStoppedMsg]       = useState<string | null>(null)
   const [models, setModels]          = useState<ModelOption[]>(FALLBACK_MODELS)
-  const [selectedModel, setSelectedModel] = useState<ModelKey>("gemini-3-flash-preview")
+  const [selectedModel, setSelectedModel] = useState<ModelKey>("gemini-3.5-flash")
   const [usedModel, setUsedModel]    = useState<string>("")
   const [modelError, setModelError]  = useState<string | null>(null)
   // Demo / offline fallback state
@@ -268,7 +317,7 @@ function GenerateContent() {
     if (searchParams.get("demo") === "true") {
       const demoIdea = "A medicine delivery app for rural villages in India"
       setIdea(demoIdea)
-      setTimeout(() => startGeneration(demoIdea, "gemini-3-flash-preview"), 1500)
+      setTimeout(() => startGeneration(demoIdea, "gemini-3.5-flash"), 1500)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -896,20 +945,75 @@ function GenerateContent() {
               </div>
             )}
 
-            {/* Error banner */}
-            {modelError && !isStreaming && (
-              <div className="mt-4 p-4 rounded-xl"
-                style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}>
-                <p className="text-sm mb-3" style={{ color: "rgb(252,165,165)" }}>⚠ {modelError}</p>
-                <button
-                  onClick={() => { reset(); setTimeout(() => startGeneration(idea, selectedModel), 50) }}
-                  className="py-2 px-4 rounded-lg text-xs font-medium cursor-pointer transition-all"
-                  style={{ background: "rgba(124,58,237,0.15)", color: "hsl(258,80%,78%)", border: "1px solid rgba(124,58,237,0.3)" }}
-                >
-                  ↺ Retry
-                </button>
-              </div>
-            )}
+            {/* Error banner — quota-aware */}
+            {modelError && !isStreaming && (() => {
+              const isQuota = /429|quota|exhausted|resource/i.test(modelError)
+              const isTimeout = /timeout|503|overload/i.test(modelError)
+              return (
+                <div className="mt-4 rounded-2xl overflow-hidden"
+                  style={{ border: `1px solid ${isQuota ? "rgba(234,179,8,0.35)" : "rgba(239,68,68,0.25)"}` }}>
+                  {/* Header */}
+                  <div className="px-5 py-3.5 flex items-center gap-3"
+                    style={{ background: isQuota ? "rgba(234,179,8,0.08)" : "rgba(239,68,68,0.08)" }}>
+                    <span className="text-lg">{isQuota ? "⏱" : isTimeout ? "🔄" : "⚠️"}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold" style={{ color: isQuota ? "rgb(250,204,21)" : "rgb(252,165,165)" }}>
+                        {isQuota ? "Quota limit reached for this model" : isTimeout ? "Model is overloaded — try again or switch" : "Generation failed"}
+                      </p>
+                    </div>
+                  </div>
+                  {/* Detail */}
+                  <div className="px-5 py-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+                    {isQuota ? (
+                      <>
+                        <p className="text-xs leading-relaxed mb-3" style={{ color: "rgba(255,255,255,0.6)" }}>
+                          <strong className="text-white">What happened:</strong> The Google AI Studio free tier allows a limited number of requests per day per project.
+                          You&apos;ve hit that limit for <strong className="text-white">{models.find(m => m.key === selectedModel)?.display ?? selectedModel}</strong>.
+                        </p>
+                        <div className="rounded-xl p-3 mb-3 space-y-1.5"
+                          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                          <p className="text-xs font-semibold text-white mb-2">📊 Free Tier Quota Details</p>
+                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>• Resets at <strong className="text-white">midnight Pacific Time</strong> every day</p>
+                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>• Limit shared across all API keys in the same Google project</p>
+                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>• To remove limits: add a billing account at <a href="https://console.cloud.google.com" target="_blank" rel="noreferrer" className="underline" style={{ color: "rgb(147,197,253)" }}>console.cloud.google.com</a></p>
+                        </div>
+                        <p className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.5)" }}>
+                          💡 <strong className="text-white">Quick fix:</strong> Switch to <strong className="text-white">Gemini 3.1 Flash Lite</strong> or <strong className="text-white">Gemini 2.5 Flash Lite</strong> — both have separate quota pools and are currently working.
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-xs leading-relaxed mb-3" style={{ color: "rgba(255,255,255,0.6)" }}>
+                        {modelError}
+                      </p>
+                    )}
+                    <div className="flex gap-2 flex-wrap">
+                      <button
+                        onClick={() => { reset(); setTimeout(() => startGeneration(idea, selectedModel), 50) }}
+                        className="py-2 px-4 rounded-lg text-xs font-medium cursor-pointer transition-all"
+                        style={{ background: "rgba(124,58,237,0.15)", color: "hsl(258,80%,78%)", border: "1px solid rgba(124,58,237,0.3)" }}>
+                        ↺ Retry same model
+                      </button>
+                      {isQuota && (
+                        <>
+                          <button
+                            onClick={() => { setSelectedModel("gemini-3.1-flash-lite"); reset(); setTimeout(() => startGeneration(idea, "gemini-3.1-flash-lite"), 50) }}
+                            className="py-2 px-4 rounded-lg text-xs font-medium cursor-pointer transition-all"
+                            style={{ background: "rgba(34,197,94,0.12)", color: "rgb(74,222,128)", border: "1px solid rgba(34,197,94,0.3)" }}>
+                            ⚡ Try Gemini 3.1 Flash Lite
+                          </button>
+                          <button
+                            onClick={() => { setSelectedModel("gemini-2.5-flash-lite"); reset(); setTimeout(() => startGeneration(idea, "gemini-2.5-flash-lite"), 50) }}
+                            className="py-2 px-4 rounded-lg text-xs font-medium cursor-pointer transition-all"
+                            style={{ background: "rgba(59,130,246,0.12)", color: "rgb(147,197,253)", border: "1px solid rgba(59,130,246,0.3)" }}>
+                            🔄 Try Gemini 2.5 Flash Lite
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* View plan button */}
             {planId && completedCount === 7 && planId !== "no-db" && (
