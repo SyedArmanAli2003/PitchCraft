@@ -8,9 +8,10 @@ import { API, type ModelKey, type ModelOption } from "@/lib/config"
 
 const FALLBACK_MODELS: ModelOption[] = [
   { key: "gemini-3-flash-preview", display: "Gemini 3 Flash",        tier: 1 },
-  { key: "gemini-3.5-flash",       display: "Gemini 3.5 Flash",      tier: 2 },
+  { key: "gemini-3.1-flash-lite",  display: "Gemini 3.1 Flash Lite", tier: 2 },
   { key: "gemini-2.5-flash",       display: "Gemini 2.5 Flash",      tier: 3 },
   { key: "gemini-2.5-flash-lite",  display: "Gemini 2.5 Flash Lite", tier: 4 },
+  { key: "gemini-3.5-flash",       display: "Gemini 3.5 Flash",      tier: 5 },
 ]
 
 // ── Demo / offline fallback ──────────────────────────────────────────────────
@@ -139,23 +140,26 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 const MODEL_ICONS: Partial<Record<ModelKey, string>> = {
   "gemini-3-flash-preview": "✦",
-  "gemini-3.5-flash":       "◈",
+  "gemini-3.1-flash-lite":  "✧",
   "gemini-2.5-flash":       "⚡",
   "gemini-2.5-flash-lite":  "▸",
+  "gemini-3.5-flash":       "◈",
 }
 
 const MODEL_BADGES: Partial<Record<ModelKey, { label: string; color: string; bg: string; border: string }>> = {
   "gemini-3-flash-preview": { label: "Gemini 3 · Recommended", color: "hsl(38,95%,72%)",  bg: "rgba(234,179,8,0.15)",  border: "rgba(234,179,8,0.4)"   },
-  "gemini-3.5-flash":       { label: "Newest",                  color: "hsl(280,90%,82%)", bg: "rgba(168,85,247,0.18)", border: "rgba(168,85,247,0.45)" },
+  "gemini-3.1-flash-lite":  { label: "Gemini 3.1 · New",       color: "hsl(160,90%,72%)", bg: "rgba(16,185,129,0.15)", border: "rgba(16,185,129,0.4)"  },
   "gemini-2.5-flash":       { label: "Balanced",                color: "hsl(258,80%,78%)", bg: "rgba(124,58,237,0.12)", border: "rgba(124,58,237,0.3)"  },
   "gemini-2.5-flash-lite":  { label: "Fastest",                 color: "hsl(239,84%,78%)", bg: "rgba(99,102,241,0.12)", border: "rgba(99,102,241,0.3)"  },
+  "gemini-3.5-flash":       { label: "High demand",             color: "hsl(280,90%,82%)", bg: "rgba(168,85,247,0.18)", border: "rgba(168,85,247,0.45)" },
 }
 
 const MODEL_DESC: Partial<Record<ModelKey, string>> = {
   "gemini-3-flash-preview": "Gemini 3 Flash — fast, reliable, and what the hackathon is built around. Recommended.",
-  "gemini-3.5-flash":       "Google's newest model — near-Pro intelligence at Flash speed. Can be busy at peak times.",
+  "gemini-3.1-flash-lite":  "Gemini 3.1 Flash Lite — upgraded Gemini 3 architecture, lighter and verified fast.",
   "gemini-2.5-flash":       "Gemini 2.5 Flash — proven stable balance of speed and quality.",
   "gemini-2.5-flash-lite":  "Gemini 2.5 Flash Lite — fastest option with generous rate limits.",
+  "gemini-3.5-flash":       "Gemini 3.5 Flash — high capability but currently experiencing high demand (503).",
 }
 
 function ModelSelector({
