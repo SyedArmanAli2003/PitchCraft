@@ -84,39 +84,43 @@ def _load_api_keys() -> list[str]:
 # ---------------------------------------------------------------------------
 # Model registry — 4 Gemini tiers
 # ---------------------------------------------------------------------------
-# NOTE: gemini-1.5-flash has been RETIRED from the v1beta API (returns 404).
-# gemini-2.0-flash IS available and serves as the guaranteed last-resort fallback.
+# Every ID below was verified live against the project keys on 2026-06-10
+# (scripts/check_models.py). Removed from the cascade after live testing:
+#   gemini-2.5-pro / gemini-2.0-flash / gemini-3-pro-preview — 429 quota-dead
+#   on free-tier keys, so they only waste cascade time.
+# gemini-3.5-flash works but spikes 503 (high demand) — kept as a selectable
+# tier, NOT the default.
 
 MODEL_CONFIGS: dict[str, dict] = {
+    "gemini-3-flash-preview": {
+        "display": "Gemini 3 Flash",
+        "tier": 1,
+        "model_id": "gemini-3-flash-preview",
+    },
     "gemini-3.5-flash": {
         "display": "Gemini 3.5 Flash",
-        "tier": 1,
-        "model_id": "gemini-3.5-flash",
-    },
-    "gemini-2.5-pro": {
-        "display": "Gemini 2.5 Pro",
         "tier": 2,
-        "model_id": "gemini-2.5-pro",
+        "model_id": "gemini-3.5-flash",
     },
     "gemini-2.5-flash": {
         "display": "Gemini 2.5 Flash",
         "tier": 3,
         "model_id": "gemini-2.5-flash",
     },
-    "gemini-2.0-flash": {
-        "display": "Gemini 2.0 Flash",
+    "gemini-2.5-flash-lite": {
+        "display": "Gemini 2.5 Flash Lite",
         "tier": 4,
-        "model_id": "gemini-2.0-flash",
+        "model_id": "gemini-2.5-flash-lite",
     },
 }
 
 # Strict cascade: if chosen model fails, fall through every tier until one works.
-# gemini-1.5-flash retired June 2026 (404 on v1beta) — replaced with gemini-2.0-flash.
+DEFAULT_MODEL_KEY = "gemini-3-flash-preview"
 CASCADE_ORDER = [
+    "gemini-3-flash-preview",
     "gemini-3.5-flash",
-    "gemini-2.5-pro",
     "gemini-2.5-flash",
-    "gemini-2.0-flash",
+    "gemini-2.5-flash-lite",
 ]
 
 
@@ -376,7 +380,7 @@ def _skip_approval_enabled() -> bool:
 # the real ADK LlmAgent objects AND the /api/agent/manifest payload, so the
 # manifest can never drift from the agents that actually run.
 
-DEFAULT_MODEL_ID = MODEL_CONFIGS["gemini-3.5-flash"]["model_id"]
+DEFAULT_MODEL_ID = MODEL_CONFIGS[DEFAULT_MODEL_KEY]["model_id"]
 
 
 # --- ADK tool wrappers over the MongoDB MCP-backed functions ---------------- #
@@ -664,6 +668,7 @@ class FinanceAgent(BaseSpecialist):
         business_plan = ctx.get("business_plan") or {}
         industry = (ctx.get("validation") or {}).get("target_market", "technology")
         benchmarks = await call_mcp_tool("get_market_benchmarks", {"industry": industry})
+        ctx["_finance_benchmarks"] = {"industry": industry, "benchmarks": benchmarks}
         return f"""Create 3-year financial projection for: "{idea}"
 Revenue model: {business_plan.get('revenue_model', 'SaaS')}
 Benchmarks from our MongoDB (via MCP): {json.dumps(benchmarks)}
@@ -678,6 +683,20 @@ Return ONLY valid JSON:
   "break_even_month": 12,
   "funding_needed": "string"
 }}"""
+
+    def post_process(self, result: dict, ctx: dict) -> dict:
+        # Deterministic record of the MongoDB grounding, mirroring MarketAgent,
+        # so the UI can show that the financials were benchmark-anchored.
+        fb = ctx.get("_finance_benchmarks") or {}
+        bm = fb.get("benchmarks") or {}
+        if isinstance(result, dict):
+            result["mongodb_benchmarks"] = {
+                "industry_queried": fb.get("industry"),
+                "plans_analyzed": bm.get("plans_analyzed", 0),
+                "avg_break_even_month": bm.get("avg_break_even_month"),
+                "protocol": "Model Context Protocol",
+            }
+        return result
 
 
 class RiskAgent(BaseSpecialist):
@@ -792,7 +811,7 @@ class PitchCraftOrchestra:
             },
         }
 
-    async def run(self, idea: str, plan_id: str, model_key: str = "gemini-3.5-flash"):
+    async def run(self, idea: str, plan_id: str, model_key: str = DEFAULT_MODEL_KEY):
         """Yield one SSE-ready dict per completed step — identical event shape to
         the original pipeline, plus additive `agent` / `specialist` metadata."""
         keys = _load_api_keys()
@@ -995,7 +1014,7 @@ def get_agent_manifest() -> dict:
     return get_orchestra().manifest()
 
 
-async def run_pitchcraft_agent(idea: str, plan_id: str, model_key: str = "gemini-3.5-flash"):
+async def run_pitchcraft_agent(idea: str, plan_id: str, model_key: str = DEFAULT_MODEL_KEY):
     """Public entry point — delegates to the multi-agent orchestrator.
     Yields one SSE-ready dict per completed step."""
     async for event in get_orchestra().run(idea, plan_id, model_key):

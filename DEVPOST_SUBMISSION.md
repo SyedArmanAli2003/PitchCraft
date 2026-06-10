@@ -72,19 +72,22 @@ Tracing is fully guarded — the app runs with or without a Phoenix key.
 ## Reliability
 
 A live demo can't die on a quota error. PitchCraft runs a **4-tier Gemini
-cascade** (Gemini 3 Pro → Gemini 3 Flash → Gemini 2.5 Flash → 2.5 Flash-Lite)
-with **multi-key rotation** on rate limits, **forced-JSON** output, a per-IP rate
-limiter, and input validation. The UI shows when a step cascaded to a lower tier.
+cascade** (Gemini 3 Flash → Gemini 3.5 Flash → Gemini 2.5 Flash → 2.5 Flash-Lite,
+every model ID verified live) with **multi-key rotation** on rate limits, 503
+retry with backoff, **forced-JSON** output, a per-IP rate limiter, and input
+validation. The UI shows when a step cascaded to a lower tier. If the backend is
+unreachable entirely, the frontend replays a clearly-labelled demo run so the
+product never dead-ends.
 
 ## Tech Stack
 
-- **AI**: Google Gemini 3 (Pro/Flash) with a 2.5 fallback cascade, via the `google-genai` SDK
+- **AI**: Google Gemini 3 Flash (default) with a 3.5/2.5 fallback cascade, via the `google-genai` SDK
 - **Agent framework**: Google ADK (`LlmAgent` + `SequentialAgent`) orchestrated by `PitchCraftOrchestra`
 - **Database**: MongoDB Atlas via a real MCP server (queries + aggregation + audit chain)
 - **Observability**: Arize Phoenix (OpenInference)
 - **Backend**: FastAPI + Python, SSE streaming
 - **Frontend**: Next.js 14 (App Router) + Three.js
-- **Deployment**: Vercel (frontend + serverless API) — **Google Cloud Run-ready** (Dockerfile + Cloud Build pipeline included)
+- **Deployment**: Google Cloud Run (frontend + backend Cloud Build pipelines included) — also deployable as Vercel frontend + Railway backend
 
 ## What's Real vs. Roadmap
 

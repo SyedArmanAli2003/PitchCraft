@@ -8,7 +8,7 @@
 
 Built for the [Google Cloud Rapid Agent Hackathon](https://rapid-agent.devpost.com/) · MongoDB & Arize tracks
 
-![Gemini 3](https://img.shields.io/badge/Gemini%203-Pro%20%2F%20Flash-7c3aed)
+![Gemini 3](https://img.shields.io/badge/Gemini%203-Flash%20%2B%203.5%20%2F%202.5%20cascade-7c3aed)
 ![Google ADK](https://img.shields.io/badge/Google%20ADK-LlmAgent%20%2B%20SequentialAgent-4285F4)
 ![MongoDB Atlas](https://img.shields.io/badge/MongoDB-Atlas%20%2B%20MCP-13aa52)
 ![Arize Phoenix](https://img.shields.io/badge/Arize-Phoenix%20OpenInference-ff6a00)
@@ -42,7 +42,7 @@ The challenge asks for an agent that **moves beyond chat**, **handles a multi-st
 | **Google Cloud Agent Builder (ADK)** | The 7 specialists are real **`google.adk.agents.LlmAgent`** objects composed into a **`SequentialAgent`** pipeline (`PitchCraftOrchestra`). The full topology is introspectable at **`/api/agent/manifest`**. |
 | **Multi-step mission, human in control** | The agents hand off through 7 reasoning stages and **pause after market research for a human approval gate** — approve, reject, or *redirect the strategy* before they commit to the full plan. |
 | **Partner power** | The agents consume **MongoDB through a real Model Context Protocol server** — their memory, grounding layer, and tamper-evident ledger. **Arize Phoenix** gives full observability — every Gemini call and every step is traced. |
-| **Built with Gemini 3** | Uses the current `google-genai` SDK with a **Gemini 3 → 2.5 cascade** (`gemini-3-pro-preview`, `gemini-3-flash-preview`, …) and forced-JSON output for reliable structured generation. |
+| **Built with Gemini 3** | Uses the current `google-genai` SDK with a **Gemini 3 → 2.5 cascade** (`gemini-3-flash-preview` default → `gemini-3.5-flash` → `gemini-2.5-flash` → `gemini-2.5-flash-lite`, every ID verified live) and forced-JSON output for reliable structured generation. |
 
 ### Judging-criteria fit
 
@@ -131,7 +131,7 @@ Every step's output is hashed into a **SHA-256 chain** anchored to a genesis has
 The agent doesn't run away with your idea. After market research it **pauses mid-stream**, keeps the connection warm with heartbeats, and waits for a decision — **approve**, **reject & stop**, or **redirect** ("focus on B2B enterprise"). The redirect is injected into the remaining steps. This is the "keeping you in control" requirement, implemented for real.
 
 ### 🧠 Gemini 3 model cascade with multi-key rotation
-Pick a tier in the UI; on quota/`429` the agent **rotates across your API keys**, and on hard failure it **cascades down the model tiers** (`gemini-3-pro-preview → gemini-3-flash-preview → gemini-2.5-flash → gemini-2.5-flash-lite`) so a plan almost always completes. The UI shows a badge when a fallback was used.
+Pick a tier in the UI; on quota/`429` the agent **rotates across your API keys**, on `503` it waits and retries, and on hard failure it **cascades down the model tiers** (`gemini-3-flash-preview → gemini-3.5-flash → gemini-2.5-flash → gemini-2.5-flash-lite`) so a plan almost always completes. The UI shows a badge when a fallback was used.
 
 ### 📊 Arize Phoenix observability (Arize track)
 Startup wires **OpenInference auto-instrumentation** for the `google-genai` SDK into Phoenix. Every Gemini call (prompt, model, tokens, latency) and every agent step appears as a span in your Phoenix project. Status is exposed at `/api/observability`. Fully optional and **self-disabling** if no key is set — it can never crash a run.

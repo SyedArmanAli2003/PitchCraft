@@ -20,18 +20,20 @@ interface StepCardProps {
 type ToolKey = AgentStep["tool"]
 
 const TOOL_BADGE: Record<ToolKey, { label: string; bg: string; color: string; border: string }> = {
-  "gemini-3.5-flash": { label: "G3.5 FLASH", bg: "rgba(234,179,8,0.15)",  color: "hsl(38,95%,72%)",    border: "rgba(234,179,8,0.4)"   },
-  "gemini-3.1-pro":   { label: "G3.1 PRO",   bg: "rgba(168,85,247,0.18)", color: "hsl(280,90%,82%)",   border: "rgba(168,85,247,0.4)"  },
-  "gemini-2.5-pro":   { label: "G2.5 PRO",   bg: "rgba(124,58,237,0.18)", color: "hsl(258,90%,82%)",   border: "rgba(124,58,237,0.4)"  },
-  "gemini-2.5-flash": { label: "G2.5 FLASH", bg: "rgba(124,58,237,0.12)", color: "hsl(258,80%,78%)",   border: "rgba(124,58,237,0.28)" },
-  "gemini-2.0-flash": { label: "G2.0",       bg: "rgba(99,102,241,0.12)", color: "hsl(239,84%,78%)",   border: "rgba(99,102,241,0.28)" },
-  "gemini-1.5-flash": { label: "G1.5",       bg: "rgba(139,92,246,0.1)",  color: "hsl(262,60%,75%)",   border: "rgba(139,92,246,0.22)" },
-  mongodb:            { label: "MONGODB",    bg: "rgba(34,197,94,0.12)",  color: "rgb(74,222,128)",    border: "rgba(34,197,94,0.25)"  },
-  system:             { label: "SYSTEM",     bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", border: "rgba(255,255,255,0.12)" },
+  "gemini-3-flash-preview": { label: "G3 FLASH",   bg: "rgba(234,179,8,0.15)",  color: "hsl(38,95%,72%)",    border: "rgba(234,179,8,0.4)"   },
+  "gemini-3.5-flash":       { label: "G3.5 FLASH", bg: "rgba(168,85,247,0.18)", color: "hsl(280,90%,82%)",   border: "rgba(168,85,247,0.4)"  },
+  "gemini-2.5-flash":       { label: "G2.5 FLASH", bg: "rgba(124,58,237,0.12)", color: "hsl(258,80%,78%)",   border: "rgba(124,58,237,0.28)" },
+  "gemini-2.5-flash-lite":  { label: "G2.5 LITE",  bg: "rgba(99,102,241,0.12)", color: "hsl(239,84%,78%)",   border: "rgba(99,102,241,0.28)" },
+  "gemini-3.1-pro":         { label: "G3.1 PRO",   bg: "rgba(168,85,247,0.18)", color: "hsl(280,90%,82%)",   border: "rgba(168,85,247,0.4)"  },
+  "gemini-2.5-pro":         { label: "G2.5 PRO",   bg: "rgba(124,58,237,0.18)", color: "hsl(258,90%,82%)",   border: "rgba(124,58,237,0.4)"  },
+  "gemini-2.0-flash":       { label: "G2.0",       bg: "rgba(99,102,241,0.12)", color: "hsl(239,84%,78%)",   border: "rgba(99,102,241,0.28)" },
+  "gemini-1.5-flash":       { label: "G1.5",       bg: "rgba(139,92,246,0.1)",  color: "hsl(262,60%,75%)",   border: "rgba(139,92,246,0.22)" },
+  mongodb:                  { label: "MONGODB",    bg: "rgba(34,197,94,0.12)",  color: "rgb(74,222,128)",    border: "rgba(34,197,94,0.25)"  },
+  system:                   { label: "SYSTEM",     bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", border: "rgba(255,255,255,0.12)" },
 }
 
 function ToolBadge({ tool }: { tool: ToolKey }) {
-  const b = TOOL_BADGE[tool] ?? TOOL_BADGE["gemini-3.5-flash"]
+  const b = TOOL_BADGE[tool] ?? TOOL_BADGE["gemini-3-flash-preview"]
   return (
     <span className="text-xs px-2 py-0.5 rounded-full"
       style={{ background: b.bg, color: b.color, border: `1px solid ${b.border}` }}>
@@ -152,7 +154,17 @@ function StepData({ stepNumber, data }: { stepNumber: number; data: Record<strin
   )
 
   if (stepNumber === 2) {
-    const mcpSources = data.mongodb_sources as string[] | undefined
+    // Live backend sends a dict ({ industry_queried, similar_plans_found, ... });
+    // the demo replay uses a plain string array. Render either.
+    const raw = data.mongodb_sources
+    const industry = !Array.isArray(raw) && typeof raw === "object" && raw !== null
+      ? (raw as Record<string, unknown>).industry_queried as string | undefined
+      : undefined
+    const sourcesLine = Array.isArray(raw)
+      ? raw.join(" · ")
+      : raw && typeof raw === "object"
+        ? `market_data.${industry ?? "industry"} · ${(raw as Record<string, unknown>).similar_plans_found ?? 0} similar plans matched in Atlas`
+        : "MongoDB MCP: 1 query executed"
     return (
       <div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -167,13 +179,13 @@ function StepData({ stepNumber, data }: { stepNumber: number; data: Record<strin
             🍃 MongoDB MCP — market data retrieved
           </p>
           <p className="text-xs font-mono mb-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-            Tool: get_industry_market_data(&quot;{val("target_market") || "industry"}&quot;)
+            Tool: get_industry_market_data(&quot;{industry ?? "industry"}&quot;)
           </p>
           <p className="text-xs font-mono mb-1.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-            Tool: search_similar_plans(...)
+            Tool: search_similar_plans(&quot;{industry ?? "idea keywords"}&quot;)
           </p>
           <p className="text-xs mb-1.5" style={{ color: "rgba(255,255,255,0.55)" }}>
-            Sources: {mcpSources?.length ? mcpSources.join(" · ") : "MongoDB MCP: 1 query executed"}
+            Sources: {sourcesLine}
           </p>
           <p className="text-xs flex items-center gap-1.5" style={{ color: "rgba(74,222,128,0.7)" }}>
             <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "rgb(74,222,128)" }} />
@@ -225,6 +237,17 @@ function StepData({ stepNumber, data }: { stepNumber: number; data: Record<strin
       <p className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
         Break-even: month {data.break_even_month as number} · Funding: {val("funding_needed")}
       </p>
+      {!!data.mongodb_benchmarks && (
+        <p className="text-xs mt-2 flex items-center gap-1.5" style={{ color: "rgba(74,222,128,0.75)" }}>
+          <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: "rgb(74,222,128)" }} />
+          🍃 Anchored to MongoDB benchmarks via MCP
+          {(() => {
+            const bm = data.mongodb_benchmarks as Record<string, unknown>
+            const n = bm.plans_analyzed as number | undefined
+            return n ? ` — ${n} stored plans analyzed` : ""
+          })()}
+        </p>
+      )}
     </div>
   )
 

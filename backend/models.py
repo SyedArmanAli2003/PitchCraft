@@ -1,11 +1,15 @@
 from typing import Literal
 from pydantic import BaseModel, field_validator
 
+# Current cascade tiers first; older keys kept so stale clients don't 422 —
+# agent.py maps unknown keys to the top of the cascade.
 ModelKey = Literal[
+    "gemini-3-flash-preview",
     "gemini-3.5-flash",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
     "gemini-3.1-pro",
     "gemini-2.5-pro",
-    "gemini-2.5-flash",
     "gemini-2.0-flash",
     "gemini-1.5-flash",
 ]
@@ -13,7 +17,7 @@ ModelKey = Literal[
 
 class IdeaRequest(BaseModel):
     idea: str
-    model: ModelKey = "gemini-3.5-flash"
+    model: ModelKey = "gemini-3-flash-preview"
 
     @field_validator("idea")
     @classmethod

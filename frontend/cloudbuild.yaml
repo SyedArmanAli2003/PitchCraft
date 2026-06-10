@@ -1,0 +1,47 @@
+# Google Cloud Build → Cloud Run deployment for the PitchCraft frontend.
+#
+# Deploy the backend first (backend/cloudbuild.yaml), copy its URL, then:
+#   gcloud builds submit --config frontend/cloudbuild.yaml \
+#     --substitutions _API_BASE=https://pitchcraft-backend-xxxx.run.app \
+#     frontend
+
+substitutions:
+  _API_BASE: ""   # required — the Cloud Run backend URL
+
+steps:
+  # 1. Build the container image (backend URL is inlined at build time).
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/pitchcraft-frontend'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_API_BASE=${_API_BASE}'
+      - '.'
+
+  # 2. Push it to Container Registry.
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/pitchcraft-frontend']
+
+  # 3. Deploy to Cloud Run (us-central1).
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - pitchcraft-frontend
+      - --image=gcr.io/$PROJECT_ID/pitchcraft-frontend
+      - --region=us-central1
+      - --platform=managed
+      - --allow-unauthenticated
+      - --min-instances=0
+      - --max-instances=5
+      - --memory=512Mi
+      - --cpu=1
+      - --port=8080
+
+images:
+  - 'gcr.io/$PROJECT_ID/pitchcraft-frontend'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

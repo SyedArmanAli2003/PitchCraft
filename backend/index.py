@@ -67,8 +67,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="PitchCraft API", lifespan=lifespan)
 
 # Starlette's allow_origins only does exact matches, so Vercel preview domains
-# (https://<branch>-<proj>.vercel.app) need a regex. Keep explicit localhost +
-# any configured FRONTEND_URL for credentialed requests.
+# (https://<branch>-<proj>.vercel.app) and Cloud Run frontends (*.run.app) need
+# a regex. Keep explicit localhost + any configured FRONTEND_URL for
+# credentialed requests.
 _explicit_origins = [
     o for o in (
         "http://localhost:3000",
@@ -80,7 +81,7 @@ _explicit_origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_explicit_origins,
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origin_regex=r"https://.*\.(vercel\.app|run\.app|up\.railway\.app)",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

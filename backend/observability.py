@@ -75,6 +75,11 @@ def init_observability() -> dict:
             project_name=project,
             auto_instrument=True,   # picks up openinference-instrumentation-google-genai
             set_global_tracer_provider=True,
+            # BatchSpanProcessor exports spans on a background thread. The default
+            # SimpleSpanProcessor exports synchronously and blocks the agent
+            # pipeline for the full OTLP retry window when the collector is slow
+            # (measured: +80 s on step 1).
+            batch=True,
         )
 
         # Belt-and-suspenders: instrument the google-genai client explicitly too,

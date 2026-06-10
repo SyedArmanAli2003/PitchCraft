@@ -7,10 +7,10 @@ import type { AgentStep } from "@/lib/types"
 import { API, type ModelKey, type ModelOption } from "@/lib/config"
 
 const FALLBACK_MODELS: ModelOption[] = [
-  { key: "gemini-3.5-flash", display: "Gemini 3.5 Flash", tier: 1 },
-  { key: "gemini-2.5-pro",   display: "Gemini 2.5 Pro",   tier: 2 },
-  { key: "gemini-2.5-flash", display: "Gemini 2.5 Flash", tier: 3 },
-  { key: "gemini-2.0-flash", display: "Gemini 2.0 Flash", tier: 4 },
+  { key: "gemini-3-flash-preview", display: "Gemini 3 Flash",        tier: 1 },
+  { key: "gemini-3.5-flash",       display: "Gemini 3.5 Flash",      tier: 2 },
+  { key: "gemini-2.5-flash",       display: "Gemini 2.5 Flash",      tier: 3 },
+  { key: "gemini-2.5-flash-lite",  display: "Gemini 2.5 Flash Lite", tier: 4 },
 ]
 
 // ── Demo / offline fallback ──────────────────────────────────────────────────
@@ -21,12 +21,12 @@ const DEMO_FALLBACK_MS = 60000  // 60s to first SSE event, else go to demo
 const DEMO_STEP_DELAY_MS = 1500 // pace between replayed steps
 
 const DEMO_TOOLS: Record<number, AgentStep["tool"]> = {
-  1: "gemini-3.5-flash",
+  1: "gemini-3-flash-preview",
   2: "mongodb",
-  3: "gemini-3.5-flash",
-  4: "gemini-3.5-flash",
-  5: "gemini-3.5-flash",
-  6: "gemini-3.5-flash",
+  3: "gemini-3-flash-preview",
+  4: "gemini-3-flash-preview",
+  5: "gemini-3-flash-preview",
+  6: "gemini-3-flash-preview",
   7: "system",
 }
 
@@ -44,7 +44,7 @@ const DEMO_PLAN: { idea: string; steps: Array<{ step: number; name: string; data
         target_market: "EdTech / Rural India",
         innovation_factor: "Offline-first AI with vernacular language support",
         main_concerns: ["Low-bandwidth connectivity", "Device penetration in rural areas"],
-        model_used: "gemini-3.5-flash",
+        model_used: "gemini-3-flash-preview",
       },
     },
     {
@@ -108,6 +108,7 @@ const DEMO_PLAN: { idea: string; steps: Array<{ step: number; name: string; data
         monthly_burn: "₹3.5 lakhs",
         break_even_month: 14,
         funding_needed: "₹50 lakhs seed",
+        mongodb_benchmarks: { plans_analyzed: 47, avg_break_even_month: 16, protocol: "Model Context Protocol" },
       },
     },
     {
@@ -137,30 +138,24 @@ const DEMO_PLAN: { idea: string; steps: Array<{ step: number; name: string; data
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 const MODEL_ICONS: Partial<Record<ModelKey, string>> = {
-  "gemini-3.5-flash": "✦",
-  "gemini-3.1-pro":   "◈",
-  "gemini-2.5-pro":   "◆",
-  "gemini-2.5-flash": "⚡",
-  "gemini-2.0-flash": "▸",
-  "gemini-1.5-flash": "◇",
+  "gemini-3-flash-preview": "✦",
+  "gemini-3.5-flash":       "◈",
+  "gemini-2.5-flash":       "⚡",
+  "gemini-2.5-flash-lite":  "▸",
 }
 
 const MODEL_BADGES: Partial<Record<ModelKey, { label: string; color: string; bg: string; border: string }>> = {
-  "gemini-3.5-flash": { label: "Latest · Recommended", color: "hsl(38,95%,72%)",  bg: "rgba(234,179,8,0.15)",  border: "rgba(234,179,8,0.4)"   },
-  "gemini-3.1-pro":   { label: "Most Powerful",         color: "hsl(280,90%,82%)", bg: "rgba(168,85,247,0.18)", border: "rgba(168,85,247,0.45)" },
-  "gemini-2.5-pro":   { label: "High Quality",          color: "hsl(258,90%,82%)", bg: "rgba(124,58,237,0.18)", border: "rgba(124,58,237,0.4)"  },
-  "gemini-2.5-flash": { label: "Balanced",              color: "hsl(258,80%,78%)", bg: "rgba(124,58,237,0.12)", border: "rgba(124,58,237,0.3)"  },
-  "gemini-2.0-flash": { label: "Solid Fallback",        color: "hsl(239,84%,78%)", bg: "rgba(99,102,241,0.12)", border: "rgba(99,102,241,0.3)"  },
-  "gemini-1.5-flash": { label: "Fastest",               color: "hsl(262,60%,75%)", bg: "rgba(139,92,246,0.1)",  border: "rgba(139,92,246,0.25)" },
+  "gemini-3-flash-preview": { label: "Gemini 3 · Recommended", color: "hsl(38,95%,72%)",  bg: "rgba(234,179,8,0.15)",  border: "rgba(234,179,8,0.4)"   },
+  "gemini-3.5-flash":       { label: "Newest",                  color: "hsl(280,90%,82%)", bg: "rgba(168,85,247,0.18)", border: "rgba(168,85,247,0.45)" },
+  "gemini-2.5-flash":       { label: "Balanced",                color: "hsl(258,80%,78%)", bg: "rgba(124,58,237,0.12)", border: "rgba(124,58,237,0.3)"  },
+  "gemini-2.5-flash-lite":  { label: "Fastest",                 color: "hsl(239,84%,78%)", bg: "rgba(99,102,241,0.12)", border: "rgba(99,102,241,0.3)"  },
 }
 
 const MODEL_DESC: Partial<Record<ModelKey, string>> = {
-  "gemini-3.5-flash": "Google's newest GA model — near-Pro intelligence at Flash speed. Recommended.",
-  "gemini-3.1-pro":   "Gemini 3.1 Pro (preview) — Google's most capable reasoning model for complex ideas.",
-  "gemini-2.5-pro":   "Gemini 2.5 Pro — high quality, proven stable. Great for complex ideas.",
-  "gemini-2.5-flash": "Gemini 2.5 Flash — ideal balance of speed and quality. Good fallback.",
-  "gemini-2.0-flash": "Gemini 2.0 Flash — solid fallback. Great for quick iterations.",
-  "gemini-1.5-flash": "Gemini 1.5 Flash — fastest option. Use if other tiers hit rate limits.",
+  "gemini-3-flash-preview": "Gemini 3 Flash — fast, reliable, and what the hackathon is built around. Recommended.",
+  "gemini-3.5-flash":       "Google's newest model — near-Pro intelligence at Flash speed. Can be busy at peak times.",
+  "gemini-2.5-flash":       "Gemini 2.5 Flash — proven stable balance of speed and quality.",
+  "gemini-2.5-flash-lite":  "Gemini 2.5 Flash Lite — fastest option with generous rate limits.",
 }
 
 function ModelSelector({
@@ -242,7 +237,7 @@ function GenerateContent() {
   const [redirectMode, setRedirectMode]   = useState(false)
   const [stoppedMsg, setStoppedMsg]       = useState<string | null>(null)
   const [models, setModels]          = useState<ModelOption[]>(FALLBACK_MODELS)
-  const [selectedModel, setSelectedModel] = useState<ModelKey>("gemini-3.5-flash")
+  const [selectedModel, setSelectedModel] = useState<ModelKey>("gemini-3-flash-preview")
   const [usedModel, setUsedModel]    = useState<string>("")
   const [modelError, setModelError]  = useState<string | null>(null)
   // Demo / offline fallback state
@@ -269,7 +264,7 @@ function GenerateContent() {
     if (searchParams.get("demo") === "true") {
       const demoIdea = "A medicine delivery app for rural villages in India"
       setIdea(demoIdea)
-      setTimeout(() => startGeneration(demoIdea, "gemini-3.5-flash"), 1500)
+      setTimeout(() => startGeneration(demoIdea, "gemini-3-flash-preview"), 1500)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
