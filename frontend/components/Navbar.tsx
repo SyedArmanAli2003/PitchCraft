@@ -48,8 +48,8 @@ function Navbar() {
 
   const NAV_LINKS = [
     { label: "How It Works", href: "/#how-it-works" },
+    { label: "History",      href: "/history" },
     { label: "Examples",     href: "/generate?demo=true" },
-    { label: "API",          href: "https://github.com/SyedArmanAli2003/PitchCraft", external: true },
     { label: "GitHub",       href: "https://github.com/SyedArmanAli2003/PitchCraft", external: true },
   ]
 

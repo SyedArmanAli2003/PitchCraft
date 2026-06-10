@@ -61,9 +61,12 @@ export interface BusinessPlan {
     name: string
     age: string
     job: string
+    location?: string
+    income_level?: string
     pain_point: string
     willingness_to_pay: string
-    how_they_find_us: string
+    how_they_find_us?: string
+    behavior_patterns?: string[]
   }>
   business_plan?: {
     problem: string

@@ -512,6 +512,13 @@ function GenerateContent() {
           if (step === 7 && status === "complete") {
             const pid = (data?.plan_id as string) || id
             if (pid && pid !== "no-db") {
+              // Track in localStorage so /history can show "My Plans" filter
+              try {
+                const stored = JSON.parse(localStorage.getItem("pitchcraft_plan_ids") || "[]") as string[]
+                if (!stored.includes(pid)) {
+                  localStorage.setItem("pitchcraft_plan_ids", JSON.stringify([pid, ...stored].slice(0, 50)))
+                }
+              } catch { /* ignore */ }
               setTimeout(() => router.push(`/plan/${pid}`), 1200)
             }
           }

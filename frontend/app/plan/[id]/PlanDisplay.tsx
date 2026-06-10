@@ -15,6 +15,66 @@ const STEP_NAMES: Record<number, string> = {
   7: "Chief of Staff",
 }
 
+// ── Viability Radar Chart ────────────────────────────────────────────────────
+function RadarChart({ scores }: { scores: { label: string; value: number }[] }) {
+  const cx = 120, cy = 120, r = 90
+  const n = scores.length
+  const pts = (vals: number[]) =>
+    vals.map((v, i) => {
+      const angle = (Math.PI * 2 * i) / n - Math.PI / 2
+      const rad = (v / 10) * r
+      return [cx + rad * Math.cos(angle), cy + rad * Math.sin(angle)]
+    })
+  const axes = scores.map((_, i) => {
+    const angle = (Math.PI * 2 * i) / n - Math.PI / 2
+    return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)]
+  })
+  const labelPts = scores.map(({ label }, i) => {
+    const angle = (Math.PI * 2 * i) / n - Math.PI / 2
+    const lr = r + 22
+    return { x: cx + lr * Math.cos(angle), y: cy + lr * Math.sin(angle), label }
+  })
+  const dataPoints = pts(scores.map(s => s.value))
+  const gridLevels = [2, 4, 6, 8, 10]
+  return (
+    <svg viewBox="0 0 240 240" className="w-full max-w-xs mx-auto">
+      {/* Grid rings */}
+      {gridLevels.map(lv => {
+        const rpts = pts(Array(n).fill(lv))
+        return <polygon key={lv}
+          points={rpts.map(p => p.join(",")).join(" ")}
+          fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+      })}
+      {/* Axes */}
+      {axes.map(([x, y], i) => (
+        <line key={i} x1={cx} y1={cy} x2={x} y2={y}
+          stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+      ))}
+      {/* Data polygon */}
+      <polygon
+        points={dataPoints.map(p => p.join(",")).join(" ")}
+        fill="rgba(124,58,237,0.2)" stroke="hsl(258,85%,64%)" strokeWidth="2" />
+      {/* Data dots */}
+      {dataPoints.map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r="4"
+          fill="hsl(258,85%,64%)" stroke="hsl(240,25%,4%)" strokeWidth="1.5" />
+      ))}
+      {/* Labels */}
+      {labelPts.map(({ x, y, label }, i) => (
+        <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="middle"
+          fontSize="9" fill="rgba(255,255,255,0.5)">{label}</text>
+      ))}
+      {/* Score values */}
+      {dataPoints.map(([x, y], i) => (
+        <text key={i} x={x} y={y - 8} textAnchor="middle"
+          fontSize="8" fill="hsl(258,80%,78%)" fontWeight="bold">
+          {scores[i].value}
+        </text>
+      ))}
+    </svg>
+  )
+}
+
 function InfoTooltip({ text }: { text: string }) {
   const [show, setShow] = useState(false)
   return (
@@ -51,7 +111,253 @@ function InfoTooltip({ text }: { text: string }) {
   )
 }
 
-type Tab = "plan" | "audit"
+type Tab = "plan" | "deck" | "roadmap" | "audit"
+
+// ── Investor Email Generator ─────────────────────────────────────────────────
+function InvestorEmailBox({ plan }: { plan: BusinessPlan }) {
+  const [copied, setCopied] = useState(false)
+  const v = plan.validation
+  const m = plan.market_research
+  const b = plan.business_plan
+  const f = plan.financials
+  if (!v || !b) return null
+  const email = `Subject: Seed Investment Opportunity — ${plan.idea}
+
+Hi [Investor Name],
+
+I'm building ${plan.idea} — ${v.one_line_summary}.
+
+The Problem: ${b.problem}
+
+Our Solution: ${b.solution}
+
+Market: ${m?.market_size ?? "large and growing"} market, growing at ${m?.growth_rate ?? "double digits"}.
+
+Traction: Early validation with target users. Viability score ${v.viability_score}/10.
+
+Ask: ${f?.funding_needed ?? "Seed funding"} to ${b.go_to_market?.slice(0, 80) ?? "accelerate growth"}.
+
+Happy to share our full deck and model. Would love 20 minutes.
+
+Best,
+[Your Name]`
+
+  return (
+    <div className="rounded-2xl p-6 mb-6"
+      style={{ background: "hsl(240,15%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.35)" }}>
+          📧 Investor Cold Email
+        </p>
+        <button
+          onClick={() => { navigator.clipboard.writeText(email); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+          className="text-xs px-3 py-1.5 rounded-lg cursor-pointer transition-all"
+          style={{ background: "rgba(124,58,237,0.15)", color: "hsl(258,80%,78%)", border: "1px solid rgba(124,58,237,0.3)" }}>
+          {copied ? "✓ Copied!" : "Copy Email"}
+        </button>
+      </div>
+      <pre className="text-xs leading-relaxed whitespace-pre-wrap rounded-xl p-4 select-all"
+        style={{ background: "rgba(255,255,255,0.02)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.05)", fontFamily: "inherit" }}>
+        {email}
+      </pre>
+    </div>
+  )
+}
+
+// ── Pitch Deck Tab ───────────────────────────────────────────────────────────
+function PitchDeckTab({ plan }: { plan: BusinessPlan }) {
+  const v = plan.validation
+  const m = plan.market_research
+  const b = plan.business_plan
+  const f = plan.financials
+  const slides = [
+    {
+      num: 1, title: "Executive Summary", color: "hsl(258,85%,64%)",
+      content: v ? (
+        <div>
+          <p className="text-3xl font-bold text-white mb-2">{v.viability_score}<span className="text-lg opacity-50">/10</span></p>
+          <p className="text-base font-semibold text-white mb-3">{v.one_line_summary}</p>
+          <p className="text-sm" style={{ color: "rgba(255,255,255,0.55)" }}>{v.core_problem_solved}</p>
+          {v.target_market && <p className="text-xs mt-3 px-3 py-1.5 rounded-full inline-block"
+            style={{ background: "rgba(124,58,237,0.15)", color: "hsl(258,80%,78%)" }}>🎯 {v.target_market}</p>}
+        </div>
+      ) : <p className="text-sm opacity-40">Not generated yet</p>,
+    },
+    {
+      num: 2, title: "Problem & Solution", color: "rgba(239,68,68,0.8)",
+      content: b ? (
+        <div className="space-y-4">
+          <div className="p-3 rounded-xl" style={{ background: "rgba(239,68,68,0.08)", borderLeft: "3px solid rgba(239,68,68,0.5)" }}>
+            <p className="text-xs uppercase tracking-widest mb-1 opacity-50">Problem</p>
+            <p className="text-sm text-white">{b.problem}</p>
+          </div>
+          <div className="p-3 rounded-xl" style={{ background: "rgba(34,197,94,0.08)", borderLeft: "3px solid rgba(34,197,94,0.5)" }}>
+            <p className="text-xs uppercase tracking-widest mb-1 opacity-50">Solution</p>
+            <p className="text-sm text-white">{b.solution}</p>
+          </div>
+          <div className="p-3 rounded-xl" style={{ background: "rgba(124,58,237,0.08)", borderLeft: "3px solid rgba(124,58,237,0.5)" }}>
+            <p className="text-xs uppercase tracking-widest mb-1 opacity-50">USP</p>
+            <p className="text-sm text-white">{b.unique_value_proposition}</p>
+          </div>
+        </div>
+      ) : <p className="text-sm opacity-40">Not generated yet</p>,
+    },
+    {
+      num: 3, title: "Market Opportunity", color: "rgba(59,130,246,0.8)",
+      content: m ? (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 rounded-xl text-center" style={{ background: "rgba(59,130,246,0.1)" }}>
+              <p className="text-lg font-bold text-white">{m.market_size}</p>
+              <p className="text-xs opacity-50">Market Size</p>
+            </div>
+            <div className="p-3 rounded-xl text-center" style={{ background: "rgba(34,197,94,0.1)" }}>
+              <p className="text-lg font-bold text-white">{m.growth_rate}</p>
+              <p className="text-xs opacity-50">Growth Rate</p>
+            </div>
+          </div>
+          <p className="text-sm italic" style={{ color: "rgba(255,255,255,0.6)" }}>{m.market_gap}</p>
+        </div>
+      ) : <p className="text-sm opacity-40">Not generated yet</p>,
+    },
+    {
+      num: 4, title: "Financial Snapshot", color: "rgba(34,197,94,0.8)",
+      content: f ? (
+        <div className="space-y-3">
+          {[["Year 1 Revenue", f.year1_revenue], ["Year 2 Revenue", f.year2_revenue], ["Year 3 Revenue", f.year3_revenue]].map(([l, v]) => (
+            <div key={l} className="flex justify-between items-center py-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <span className="text-xs opacity-50">{l}</span>
+              <span className="text-sm font-semibold text-white">{v}</span>
+            </div>
+          ))}
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <div className="p-2 rounded-lg text-center" style={{ background: "rgba(255,255,255,0.04)" }}>
+              <p className="text-sm font-bold text-white">{f.startup_cost}</p>
+              <p className="text-xs opacity-40">Startup Cost</p>
+            </div>
+            <div className="p-2 rounded-lg text-center" style={{ background: "rgba(255,255,255,0.04)" }}>
+              <p className="text-sm font-bold" style={{ color: "rgb(74,222,128)" }}>{f.funding_needed}</p>
+              <p className="text-xs opacity-40">Funding Ask</p>
+            </div>
+          </div>
+        </div>
+      ) : <p className="text-sm opacity-40">Not generated yet</p>,
+    },
+    {
+      num: 5, title: "Go-to-Market", color: "rgba(234,179,8,0.8)",
+      content: b ? (
+        <div className="space-y-3">
+          <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.75)" }}>{b.go_to_market}</p>
+          {b.revenue_streams && b.revenue_streams.length > 0 && (
+            <div>
+              <p className="text-xs uppercase tracking-widest mb-2 opacity-40">Revenue Streams</p>
+              <div className="space-y-1">
+                {b.revenue_streams.map((s, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
+                    <span style={{ color: "rgb(250,204,21)" }}>→</span> {s}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : <p className="text-sm opacity-40">Not generated yet</p>,
+    },
+  ]
+  return (
+    <div className="space-y-4">
+      <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+        Investor-ready slides generated from your AI business plan
+      </p>
+      {slides.map(slide => (
+        <div key={slide.num} className="rounded-2xl overflow-hidden"
+          style={{ background: "hsl(240,15%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="px-6 py-3 flex items-center gap-3"
+            style={{ background: `linear-gradient(90deg,${slide.color}22,transparent)`, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+            <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+              style={{ background: slide.color, color: "white" }}>{slide.num}</span>
+            <h3 className="text-sm font-semibold text-white">{slide.title}</h3>
+          </div>
+          <div className="p-6">{slide.content}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── 90-Day Roadmap Tab ───────────────────────────────────────────────────────
+function RoadmapTab({ plan }: { plan: BusinessPlan }) {
+  const b = plan.business_plan
+  const f = plan.financials
+  const phases = [
+    {
+      phase: "Phase 1", period: "Days 1–30", title: "Validate & Research",
+      color: "rgba(59,130,246,0.8)", bg: "rgba(59,130,246,0.06)",
+      tasks: [
+        "Talk to 20+ potential customers about the problem",
+        "Build a simple landing page to capture interest",
+        `Define your MVP scope: ${b?.solution?.slice(0, 60) ?? "core feature set"}…`,
+        "Research competitors and identify differentiators",
+        "Set up analytics (Mixpanel / PostHog)",
+      ],
+    },
+    {
+      phase: "Phase 2", period: "Days 31–60", title: "Build & Launch MVP",
+      color: "rgba(234,179,8,0.8)", bg: "rgba(234,179,8,0.06)",
+      tasks: [
+        "Build the MVP — focus on ONE core user flow",
+        "Onboard 10 beta users for feedback",
+        `Start Go-to-Market: ${b?.go_to_market?.slice(0, 60) ?? "initial channels"}…`,
+        f ? `Control monthly burn to stay within ${f.monthly_burn}` : "Track expenses tightly",
+        "Collect testimonials and usage data",
+      ],
+    },
+    {
+      phase: "Phase 3", period: "Days 61–90", title: "Scale & Fundraise",
+      color: "rgba(34,197,94,0.8)", bg: "rgba(34,197,94,0.06)",
+      tasks: [
+        "Achieve first paying customers",
+        f ? `Target: ${f.year1_revenue} revenue run rate by month 3` : "Set revenue targets",
+        "Prepare investor pitch deck",
+        f ? `Begin fundraising: ${f.funding_needed} seed round` : "Start angel/seed conversations",
+        "Define metrics for Series A readiness",
+      ],
+    },
+  ]
+  return (
+    <div className="space-y-4">
+      <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+        AI-generated execution roadmap based on your business plan
+      </p>
+      {phases.map((ph, pi) => (
+        <div key={pi} className="rounded-2xl overflow-hidden"
+          style={{ background: ph.bg, border: `1px solid ${ph.color.replace("0.8", "0.25")}` }}>
+          <div className="px-5 py-4 flex items-center justify-between"
+            style={{ borderBottom: `1px solid ${ph.color.replace("0.8", "0.15")}` }}>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest mb-0.5" style={{ color: ph.color }}>{ph.phase}</p>
+              <p className="text-base font-bold text-white">{ph.title}</p>
+            </div>
+            <span className="text-xs px-3 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>
+              {ph.period}
+            </span>
+          </div>
+          <ul className="p-5 space-y-2.5">
+            {ph.tasks.map((task, ti) => (
+              <li key={ti} className="flex items-start gap-3">
+                <span className="w-5 h-5 rounded flex-shrink-0 mt-0.5 flex items-center justify-center text-xs"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.3)" }}>
+                  {ti + 1}
+                </span>
+                <p className="text-sm leading-snug" style={{ color: "rgba(255,255,255,0.75)" }}>{task}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export default function PlanDisplay({ plan }: { plan: BusinessPlan }) {
   const router = useRouter()
@@ -125,24 +431,26 @@ export default function PlanDisplay({ plan }: { plan: BusinessPlan }) {
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-1 mb-6 p-1 rounded-xl"
+        <div className="flex gap-1 mb-6 p-1 rounded-xl overflow-x-auto"
           style={{ background: "hsl(240,15%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}>
           {([
-            { id: "plan",  label: "Business Plan",  icon: "📄" },
-            { id: "audit", label: "Audit Trail",     icon: "🔒" },
+            { id: "plan",    label: "Business Plan", icon: "📄" },
+            { id: "deck",    label: "Pitch Deck",     icon: "🎯" },
+            { id: "roadmap", label: "90-Day Plan",    icon: "🗺️" },
+            { id: "audit",   label: "Audit Trail",    icon: "🔒" },
           ] as { id: Tab; label: string; icon: string }[]).map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className="flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer"
+              className="flex-1 py-2.5 px-3 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer whitespace-nowrap"
               style={activeTab === tab.id
                 ? { background: "hsl(258,85%,64%)", color: "white", boxShadow: "0 0 16px rgba(124,58,237,0.3)" }
                 : { background: "transparent", color: "rgba(255,255,255,0.45)" }
               }
             >
-              <span className="mr-1.5">{tab.icon}</span>{tab.label}
+              <span className="mr-1">{tab.icon}</span>{tab.label}
               {tab.id === "audit" && !auditLoading && auditChain && (
-                <span className="ml-2 text-xs px-1.5 py-0.5 rounded-full inline-block"
+                <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full inline-block"
                   style={auditChain.verified
                     ? { background: "rgba(34,197,94,0.25)", color: "rgb(74,222,128)" }
                     : { background: "rgba(239,68,68,0.2)", color: "rgb(252,165,165)" }}>
@@ -214,20 +522,67 @@ export default function PlanDisplay({ plan }: { plan: BusinessPlan }) {
               <div className="rounded-2xl p-6 mb-6"
                 style={{ background: "hsl(240,15%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}>
                 <p className="text-xs uppercase tracking-widest mb-4" style={{ color: "rgba(255,255,255,0.35)" }}>Customer Personas</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {plan.personas.map((p, i) => (
-                    <div key={i} className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                      <div className="w-10 h-10 rounded-full flex items-center justify-center mb-3 font-bold"
-                        style={{ background: "rgba(124,58,237,0.15)", color: "hsl(258,80%,78%)" }}>
-                        {p.name.slice(0,2).toUpperCase()}
+                    <div key={i} className="rounded-2xl p-5 flex flex-col gap-3"
+                      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(124,58,237,0.2)" }}>
+                      {/* Avatar + name */}
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
+                          style={{ background: "linear-gradient(135deg,rgba(124,58,237,0.4),rgba(59,130,246,0.3))", color: "white", border: "2px solid rgba(124,58,237,0.4)" }}>
+                          {p.name.slice(0,2).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-white">{p.name}</p>
+                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>
+                            {p.job}{p.age ? ` · ${p.age}` : ""}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-sm font-medium text-white">{p.name}</p>
-                      <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{p.job} · {p.age}</p>
-                      <p className="text-xs mt-2 italic" style={{ color: "rgba(255,255,255,0.5)" }}>&quot;{p.pain_point}&quot;</p>
-                      <span className="inline-block mt-2 text-xs px-2 py-0.5 rounded-full"
-                        style={{ background: "rgba(34,197,94,0.12)", color: "rgb(74,222,128)" }}>
-                        {p.willingness_to_pay}
-                      </span>
+                      {/* Location + income */}
+                      {(p.location || p.income_level) && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {p.location && (
+                            <span className="text-xs px-2 py-0.5 rounded-full"
+                              style={{ background: "rgba(59,130,246,0.12)", color: "rgb(147,197,253)", border: "1px solid rgba(59,130,246,0.25)" }}>
+                              📍 {p.location}
+                            </span>
+                          )}
+                          {p.income_level && (
+                            <span className="text-xs px-2 py-0.5 rounded-full"
+                              style={{ background: "rgba(234,179,8,0.1)", color: "rgb(250,204,21)", border: "1px solid rgba(234,179,8,0.25)" }}>
+                              💰 {p.income_level}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {/* Pain point */}
+                      <p className="text-xs leading-relaxed italic"
+                        style={{ color: "rgba(255,255,255,0.6)", borderLeft: "2px solid rgba(124,58,237,0.4)", paddingLeft: "8px" }}>
+                        &quot;{p.pain_point}&quot;
+                      </p>
+                      {/* Behavior tags */}
+                      {p.behavior_patterns && p.behavior_patterns.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {p.behavior_patterns.slice(0, 3).map((b, bi) => (
+                            <span key={bi} className="text-xs px-1.5 py-0.5 rounded"
+                              style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)" }}>
+                              {b}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {/* How they find us */}
+                      {p.how_they_find_us && (
+                        <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+                          <span style={{ color: "rgba(255,255,255,0.2)" }}>Discovery: </span>{p.how_they_find_us}
+                        </p>
+                      )}
+                      {/* WTP */}
+                      <div className="mt-auto pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                        <p className="text-xs mb-1.5" style={{ color: "rgba(255,255,255,0.35)" }}>Willingness to Pay</p>
+                        <p className="text-xs font-medium" style={{ color: "rgb(74,222,128)" }}>{p.willingness_to_pay}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -330,13 +685,37 @@ export default function PlanDisplay({ plan }: { plan: BusinessPlan }) {
               </div>
             )}
 
+            {/* Viability Radar */}
+            {v && m && (
+              <div className="rounded-2xl p-6 mb-6"
+                style={{ background: "hsl(240,15%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <p className="text-xs uppercase tracking-widest mb-4" style={{ color: "rgba(255,255,255,0.35)" }}>Viability Radar</p>
+                <RadarChart scores={[
+                  { label: "Market",      value: Math.min(10, Math.max(1, Math.round((m.opportunity_score ?? 7)))) },
+                  { label: "Revenue",     value: Math.min(10, Math.max(1, Math.round((v.viability_score ?? 7) * 0.9))) },
+                  { label: "Innovation",  value: Math.min(10, Math.max(1, Math.round((v.viability_score ?? 6) * 0.85))) },
+                  { label: "Competition", value: Math.min(10, Math.max(1, 10 - Math.min(9, (m.top_competitors?.length ?? 3) * 2))) },
+                  { label: "Execution",   value: Math.min(10, Math.max(1, Math.round((v.viability_score ?? 6) * 0.8))) },
+                ]} />
+              </div>
+            )}
+
+            {/* Investor Email Generator */}
+            <InvestorEmailBox plan={plan} />
+
             <button onClick={() => window.print()}
               className="w-full py-3 rounded-xl text-sm cursor-pointer transition-colors"
               style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              Print / Save as PDF
+              🖨 Print / Save as PDF
             </button>
           </>
         )}
+
+        {/* ── PITCH DECK TAB ── */}
+        {activeTab === "deck" && <PitchDeckTab plan={plan} />}
+
+        {/* ── 90-DAY ROADMAP TAB ── */}
+        {activeTab === "roadmap" && <RoadmapTab plan={plan} />}
 
         {/* ── AUDIT TRAIL TAB ── */}
         {activeTab === "audit" && (
