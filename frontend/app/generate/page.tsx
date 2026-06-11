@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar"
 import StepCard from "@/components/StepCard"
 import type { AgentStep } from "@/lib/types"
 import { API, type ModelKey, type ModelOption } from "@/lib/config"
+import { getUserId } from "@/lib/user"
 
 // Verified live 2026-06-10 (httpx 8s timeout test):
 //   gemini-3.5-flash      -> OK   | gemini-3.1-flash-lite -> OK
@@ -431,7 +432,7 @@ function GenerateContent() {
       const res = await fetch(API.generate, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idea: ideaText, model: modelKey }),
+        body: JSON.stringify({ idea: ideaText, model: modelKey, user_id: getUserId() }),
         signal: controller.signal,
       })
 

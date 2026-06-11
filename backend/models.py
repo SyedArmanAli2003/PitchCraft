@@ -19,6 +19,7 @@ ModelKey = Literal[
 class IdeaRequest(BaseModel):
     idea: str
     model: ModelKey = "gemini-3.5-flash"
+    user_id: str | None = None      # device-scoped UUID from localStorage
 
     @field_validator("idea")
     @classmethod

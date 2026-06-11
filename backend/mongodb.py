@@ -182,7 +182,7 @@ def init_db() -> None:
 # Query functions
 # ---------------------------------------------------------------------------
 
-def save_plan(idea: str) -> str:
+def save_plan(idea: str, user_id: str | None = None) -> str:
     business_plans, _ = _collections()
     if business_plans is None:
         return "no-db"
@@ -190,6 +190,7 @@ def save_plan(idea: str) -> str:
         "idea": idea,
         "created_at": datetime.now(timezone.utc),
         "status": "generating",
+        "user_id": user_id or "anonymous",   # device-scoped identity
         "validation": {},
         "market_research": {},
         "personas": [],
@@ -257,19 +258,77 @@ def get_plans_today() -> int:
         return 0
 
 
-def get_recent_plans(limit: int = 10) -> list[dict]:
+def get_recent_plans(limit: int = 50, user_id: str | None = None) -> list[dict]:
     business_plans, _ = _collections()
     if business_plans is None:
         return []
     try:
+        query: dict = {"status": "complete"}
+        # If a user_id is provided, restrict to that user's plans only.
+        if user_id and user_id != "anonymous":
+            query["user_id"] = user_id
         docs = list(
-            business_plans.find({"status": "complete"})
+            business_plans.find(query)
             .sort("created_at", -1)
             .limit(limit)
         )
         for d in docs:
             d["_id"] = str(d["_id"])
+            d.pop("user_id", None)   # don't expose internal user_id to regular users
         return docs
+    except Exception:
+        return []
+
+
+# ---------------------------------------------------------------------------
+# Admin functions (all plans, user stats)
+# ---------------------------------------------------------------------------
+
+def get_all_plans_admin(limit: int = 100, status: str | None = None) -> list[dict]:
+    """Admin-only: return all plans with user_id visible, sorted newest first."""
+    business_plans, _ = _collections()
+    if business_plans is None:
+        return []
+    try:
+        query: dict = {}
+        if status:
+            query["status"] = status
+        docs = list(
+            business_plans.find(query)
+            .sort("created_at", -1)
+            .limit(limit)
+        )
+        for d in docs:
+            d["_id"] = str(d["_id"])
+            if "created_at" in d:
+                d["created_at"] = d["created_at"].isoformat() if hasattr(d["created_at"], "isoformat") else str(d["created_at"])
+        return docs
+    except Exception:
+        return []
+
+
+def get_user_stats() -> list[dict]:
+    """Admin-only: aggregate plan counts grouped by user_id."""
+    business_plans, _ = _collections()
+    if business_plans is None:
+        return []
+    try:
+        pipeline = [
+            {"$group": {
+                "_id": "$user_id",
+                "total_plans": {"$sum": 1},
+                "complete_plans": {"$sum": {"$cond": [{"$eq": ["$status", "complete"]}, 1, 0]}},
+                "last_active": {"$max": "$created_at"},
+            }},
+            {"$sort": {"total_plans": -1}},
+            {"$limit": 100},
+        ]
+        results = list(business_plans.aggregate(pipeline))
+        for r in results:
+            r["user_id"] = r.pop("_id") or "anonymous"
+            if r.get("last_active") and hasattr(r["last_active"], "isoformat"):
+                r["last_active"] = r["last_active"].isoformat()
+        return results
     except Exception:
         return []
 

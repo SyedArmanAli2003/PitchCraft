@@ -3,6 +3,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { API } from "@/lib/config"
+import { getUserId, clearUserId } from "@/lib/user"
 import Navbar from "@/components/Navbar"
 import type { BusinessPlan } from "@/lib/types"
 
@@ -12,9 +13,9 @@ type PlanSummary = Pick<BusinessPlan, "_id" | "idea" | "created_at" | "status"> 
 }
 
 function ScoreBadge({ score }: { score: number }) {
-  const color = score >= 7 ? "rgba(34,197,94,0.9)" : score >= 5 ? "rgba(234,179,8,0.9)" : "rgba(239,68,68,0.9)"
-  const bg   = score >= 7 ? "rgba(34,197,94,0.12)" : score >= 5 ? "rgba(234,179,8,0.12)" : "rgba(239,68,68,0.12)"
-  const border = score >= 7 ? "rgba(34,197,94,0.3)" : score >= 5 ? "rgba(234,179,8,0.3)" : "rgba(239,68,68,0.3)"
+  const color  = score >= 7 ? "rgba(34,197,94,0.9)"   : score >= 5 ? "rgba(234,179,8,0.9)"   : "rgba(239,68,68,0.9)"
+  const bg     = score >= 7 ? "rgba(34,197,94,0.12)"  : score >= 5 ? "rgba(234,179,8,0.12)"  : "rgba(239,68,68,0.12)"
+  const border = score >= 7 ? "rgba(34,197,94,0.3)"   : score >= 5 ? "rgba(234,179,8,0.3)"   : "rgba(239,68,68,0.3)"
   return (
     <span className="text-xl font-bold tabular-nums px-3 py-1 rounded-xl"
       style={{ color, background: bg, border: `1px solid ${border}` }}>
@@ -28,19 +29,19 @@ export default function HistoryPage() {
   const [plans, setPlans] = useState<PlanSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [myPlansOnly, setMyPlansOnly] = useState(false)
-  const [myPlanIds, setMyPlanIds] = useState<Set<string>>(new Set())
+  const [userId, setUserId] = useState<string | null>(null)
 
-  // Load local plan IDs from localStorage
+  // Get or create user ID on mount
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("pitchcraft_plan_ids")
-      if (stored) setMyPlanIds(new Set(JSON.parse(stored)))
-    } catch { /* ignore */ }
+    const id = getUserId()
+    setUserId(id)
   }, [])
 
+  // Fetch only this user's plans
   useEffect(() => {
-    fetch(API.plans)
+    if (!userId) return
+    const url = `${API.plans}?user_id=${encodeURIComponent(userId)}`
+    fetch(url)
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((data: PlanSummary[]) => {
         setPlans(data)
@@ -50,11 +51,13 @@ export default function HistoryPage() {
         setError("Could not load plans. Make sure the backend is running.")
         setLoading(false)
       })
-  }, [])
+  }, [userId])
 
-  const displayed = myPlansOnly
-    ? plans.filter(p => myPlanIds.has(p._id))
-    : plans
+  const handleClearHistory = () => {
+    if (!confirm("This will clear your local identity and you won't see these plans again. Are you sure?")) return
+    clearUserId()
+    router.push("/generate")
+  }
 
   return (
     <div style={{ background: "hsl(240,25%,4%)", minHeight: "100vh" }}>
@@ -65,25 +68,25 @@ export default function HistoryPage() {
         <div className="flex items-end justify-between mb-8 gap-4 flex-wrap">
           <div>
             <p className="text-xs uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.3)" }}>
-              Plan History
+              My Plans
             </p>
             <h1 className="text-3xl font-bold text-white">Your Generated Plans</h1>
             <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-              Every plan is stored in MongoDB Atlas and powered by real Gemini AI output.
+              Plans generated from this browser — stored securely in MongoDB Atlas.
             </p>
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            {myPlanIds.size > 0 && (
-              <button
-                onClick={() => setMyPlansOnly(v => !v)}
-                className="text-xs px-3 py-1.5 rounded-lg transition-all cursor-pointer"
-                style={myPlansOnly
-                  ? { background: "hsl(258,85%,64%)", color: "white" }
-                  : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }
-                }>
-                {myPlansOnly ? "✓ My Plans" : "My Plans Only"}
-              </button>
+            {userId && (
+              <p className="text-xs mt-1 font-mono" style={{ color: "rgba(255,255,255,0.18)" }}>
+                Device ID: {userId.slice(0, 8)}…
+              </p>
             )}
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0 flex-wrap">
+            <button
+              onClick={handleClearHistory}
+              className="text-xs px-3 py-1.5 rounded-lg transition-all cursor-pointer"
+              style={{ background: "rgba(239,68,68,0.08)", color: "rgba(252,165,165,0.7)", border: "1px solid rgba(239,68,68,0.15)" }}>
+              Clear Identity
+            </button>
             <button
               onClick={() => router.push("/generate")}
               className="text-sm px-4 py-2 rounded-xl font-semibold text-white cursor-pointer"
@@ -114,13 +117,11 @@ export default function HistoryPage() {
         )}
 
         {/* Empty state */}
-        {!loading && !error && displayed.length === 0 && (
+        {!loading && !error && plans.length === 0 && (
           <div className="rounded-2xl p-16 text-center"
             style={{ background: "hsl(240,15%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <p className="text-4xl mb-4">🚀</p>
-            <p className="text-white font-semibold text-lg mb-2">
-              {myPlansOnly ? "No plans from this session yet" : "No plans generated yet"}
-            </p>
+            <p className="text-white font-semibold text-lg mb-2">No plans yet from this device</p>
             <p className="text-sm mb-6" style={{ color: "rgba(255,255,255,0.4)" }}>
               Generate your first AI business plan in under 2 minutes.
             </p>
@@ -134,13 +135,13 @@ export default function HistoryPage() {
         )}
 
         {/* Plan grid */}
-        {!loading && !error && displayed.length > 0 && (
+        {!loading && !error && plans.length > 0 && (
           <>
             <p className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.25)" }}>
-              {displayed.length} plan{displayed.length !== 1 ? "s" : ""} · sorted by newest first
+              {plans.length} plan{plans.length !== 1 ? "s" : ""} from this device · sorted by newest first
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {displayed.map(plan => (
+              {plans.map(plan => (
                 <Link key={plan._id} href={`/plan/${plan._id}`}
                   className="group rounded-2xl p-5 flex flex-col gap-3 transition-all duration-200 cursor-pointer"
                   style={{
@@ -167,12 +168,10 @@ export default function HistoryPage() {
                         Generating…
                       </span>
                     )}
-                    {myPlanIds.has(plan._id) && (
-                      <span className="text-xs px-2 py-0.5 rounded-full"
-                        style={{ background: "rgba(124,58,237,0.15)", color: "hsl(258,80%,78%)", border: "1px solid rgba(124,58,237,0.3)" }}>
-                        Mine
-                      </span>
-                    )}
+                    <span className="text-xs px-2 py-0.5 rounded-full"
+                      style={{ background: "rgba(124,58,237,0.12)", color: "hsl(258,80%,78%)", border: "1px solid rgba(124,58,237,0.25)" }}>
+                      Mine ✓
+                    </span>
                   </div>
 
                   {/* Idea title */}

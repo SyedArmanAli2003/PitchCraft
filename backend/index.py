@@ -26,6 +26,7 @@ from agent import run_pitchcraft_agent, get_models_list, _load_api_keys, get_age
 from mongodb import (
     init_db, save_plan, get_plan, get_plan_by_token, get_plan_count, get_plans_today,
     get_recent_plans, get_audit_chain, get_approval_request, resolve_approval, _get_db,
+    get_all_plans_admin, get_user_stats,
 )
 from audit import verify_audit_chain, reconstruct_steps_from_plan
 from observability import init_observability, observability_status
@@ -168,7 +169,7 @@ async def generate_plan(request: IdeaRequest, http_request: Request):
             headers={"Retry-After": str(int(_RATE_WINDOW))},
         )
 
-    plan_id = save_plan(request.idea)
+    plan_id = save_plan(request.idea, user_id=request.user_id)
     model_key = request.model
 
     async def event_stream():
@@ -281,9 +282,61 @@ async def get_shared_plan(token: str):
 
 
 @app.get("/api/plans")
-async def get_plans():
-    plans = get_recent_plans(limit=10)
+async def get_plans(user_id: str | None = None):
+    """Return plans for a specific user (device-scoped UUID) or all plans if no user_id.
+    Pass ?user_id=<uuid> to get only that user's plans.
+    """
+    plans = get_recent_plans(limit=50, user_id=user_id)
     return plans
+
+
+# ---------------------------------------------------------------------------
+# Admin endpoints (requires ADMIN_SECRET env var)
+# ---------------------------------------------------------------------------
+
+def _check_admin(request: Request) -> None:
+    """Raise 401/403 if the request doesn't carry a valid admin secret."""
+    secret = os.getenv("ADMIN_SECRET", "").strip()
+    if not secret:
+        raise HTTPException(status_code=503, detail="Admin access not configured (set ADMIN_SECRET env var)")
+    token = (
+        request.headers.get("X-Admin-Secret")
+        or request.query_params.get("secret")
+        or ""
+    )
+    if token != secret:
+        raise HTTPException(status_code=401, detail="Invalid admin secret")
+
+
+@app.get("/api/admin/stats")
+async def admin_stats(request: Request):
+    """Admin: overall system statistics."""
+    _check_admin(request)
+    total = get_plan_count()
+    today = get_plans_today()
+    users = get_user_stats()
+    return {
+        "total_plans": total,
+        "plans_today": today,
+        "unique_users": len(users),
+        "users": users,
+        "gemini_ready": _gemini_ready(),
+        "mongodb_connected": _get_db() is not None,
+    }
+
+
+@app.get("/api/admin/plans")
+async def admin_plans(request: Request, status: str | None = None, limit: int = 100):
+    """Admin: all plans across all users, with user_id visible."""
+    _check_admin(request)
+    return get_all_plans_admin(limit=limit, status=status)
+
+
+@app.get("/api/admin/users")
+async def admin_users(request: Request):
+    """Admin: per-user activity summary."""
+    _check_admin(request)
+    return get_user_stats()
 
 
 @app.get("/api/mcp/tools")
