@@ -111,7 +111,7 @@ function InfoTooltip({ text }: { text: string }) {
   )
 }
 
-type Tab = "plan" | "deck" | "roadmap" | "audit"
+type Tab = "plan" | "deck" | "roadmap" | "tank" | "audit"
 
 // ── Investor Email Generator ─────────────────────────────────────────────────
 function InvestorEmailBox({ plan }: { plan: BusinessPlan }) {
@@ -359,6 +359,238 @@ function RoadmapTab({ plan }: { plan: BusinessPlan }) {
   )
 }
 
+// ── Shark Tank Simulator Tab ────────────────────────────────────────────────────
+const SHARKS = [
+  { name: "Mark C.",   icon: "👆", style: "tough",        color: "rgba(239,68,68,0.8)",   bg: "rgba(239,68,68,0.07)",   trait: "Demands proof of traction and ruthless unit economics." },
+  { name: "Sarah K.",  icon: "🦌", style: "strategic",   color: "rgba(59,130,246,0.8)",  bg: "rgba(59,130,246,0.07)",  trait: "Looks for defensible moats and brand-building potential." },
+  { name: "Raj P.",    icon: "🥁", style: "tech-focused", color: "rgba(124,58,237,0.8)",  bg: "rgba(124,58,237,0.07)",  trait: "Obsessed with AI, scalability and recurring revenue." },
+  { name: "Lisa T.",   icon: "🌟", style: "empathetic",   color: "rgba(234,179,8,0.8)",   bg: "rgba(234,179,8,0.07)",   trait: "Connects emotionally with the story and founding team." },
+  { name: "Carlos M.", icon: "💼", style: "operational",  color: "rgba(34,197,94,0.8)",   bg: "rgba(34,197,94,0.07)",   trait: "Focuses on supply chain, operations and margins." },
+]
+
+type Reaction = { shark: string; verdict: "IN" | "OUT" | "COUNTER"; comment: string; counter_offer?: string }
+
+function SharkTankTab({ plan }: { plan: BusinessPlan }) {
+  const v = plan.validation
+  const m = plan.market_research
+  const b = plan.business_plan
+  const f = plan.financials
+
+  const [askAmount, setAskAmount] = useState(f?.funding_needed?.replace(/[^0-9]/g, "") || "250000")
+  const [equityPct, setEquityPct] = useState("10")
+  const [reactions, setReactions] = useState<Reaction[]>([])
+  const [loading, setLoading] = useState(false)
+  const [pitched, setPitched] = useState(false)
+
+  const impliedValuation = askAmount && equityPct
+    ? `$${(parseFloat(askAmount) / (parseFloat(equityPct) / 100) / 1_000_000).toFixed(2)}M`
+    : "?"
+
+  const runSimulation = async () => {
+    if (!v || !b) return
+    setLoading(true)
+    setPitched(false)
+    // Build context for each shark
+    const ctx = {
+      idea: plan.idea,
+      viability_score: v.viability_score,
+      summary: v.one_line_summary,
+      problem: b.problem,
+      solution: b.solution,
+      usp: b.unique_value_proposition,
+      market_size: m?.market_size,
+      growth_rate: m?.growth_rate,
+      revenue_model: b.revenue_model,
+      year1_revenue: f?.year1_revenue,
+      funding_needed: `$${Number(askAmount).toLocaleString()} for ${equityPct}% equity`,
+      implied_valuation: impliedValuation,
+    }
+    // Simulate each shark via the backend
+    try {
+      const res = await fetch(`/api/shark-tank`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan_context: ctx, sharks: SHARKS.map(s => ({ name: s.name, style: s.style, trait: s.trait })) }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setReactions(data.reactions || [])
+      } else {
+        // Client-side fallback simulation
+        setReactions(simulateLocally(ctx))
+      }
+    } catch {
+      setReactions(simulateLocally(ctx))
+    }
+    setLoading(false)
+    setPitched(true)
+  }
+
+  function simulateLocally(ctx: Record<string, unknown>): Reaction[] {
+    const score = Number(ctx.viability_score ?? 6)
+    const valM = parseFloat(impliedValuation.replace(/[$M]/g, "")) || 2.5
+    return SHARKS.map(shark => {
+      let verdict: "IN" | "OUT" | "COUNTER" = "OUT"
+      let comment = ""
+      let counter_offer: string | undefined
+      if (shark.style === "tough") {
+        verdict = score >= 7 ? "COUNTER" : "OUT"
+        comment = score >= 7
+          ? `The viability score of ${score}/10 is acceptable, but I need traction data before I commit. $${Number(askAmount).toLocaleString()} at ${impliedValuation} is aggressive.`
+          : `A score of ${score}/10 tells me this isn\'t ready. Come back when you have revenue. I\'m out.`
+        if (verdict === "COUNTER") counter_offer = `I\'ll do the deal at ${Math.round(parseFloat(equityPct) * 1.5)}% equity — take it or leave it.`
+      } else if (shark.style === "tech-focused") {
+        verdict = score >= 6 ? "IN" : "COUNTER"
+        comment = score >= 6
+          ? `The AI angle is compelling. ${impliedValuation} valuation for this stage is fair if you hit ${String(ctx.year1_revenue ?? "Year 1 targets")}.`
+          : `I like the tech but the valuation scares me. Let\'s talk about a note structure instead.`
+        if (verdict === "COUNTER") counter_offer = `Convertible note at $${Math.round(parseFloat(askAmount) * 0.9).toLocaleString()} with a ${Math.round(parseFloat(equityPct) + 2)}% cap.`
+      } else if (shark.style === "strategic") {
+        verdict = valM <= 5 ? "IN" : "COUNTER"
+        comment = valM <= 5
+          ? `Smart positioning in a fragmented market. The moat is defensible and ${impliedValuation} is reasonable.`
+          : `${impliedValuation} is too rich for me at this stage. I need to see more market penetration.`
+        if (verdict === "COUNTER") counter_offer = `Same investment for ${Math.round(parseFloat(equityPct) + 3)}% — that values you at ${`$${((parseFloat(askAmount) / ((parseFloat(equityPct) + 3) / 100)) / 1_000_000).toFixed(1)}M`}.`
+      } else if (shark.style === "empathetic") {
+        verdict = score >= 5 ? "IN" : "OUT"
+        comment = score >= 5
+          ? `I love the story and mission. The customer pain is real. I\'m in — let\'s build this together.`
+          : `The passion is there but the numbers aren\'t compelling enough for me to risk my money. I\'m out.`
+      } else {
+        verdict = score >= 6 && valM <= 6 ? "IN" : "OUT"
+        comment = verdict === "IN"
+          ? `The operational model is lean. ${String(ctx.revenue_model ?? "Revenue model")} can scale. Let\'s do it.`
+          : `Margins worry me. Until you demonstrate unit economics work at scale, I\'m out.`
+      }
+      return { shark: shark.name, verdict, comment, counter_offer }
+    })
+  }
+
+  const inCount    = reactions.filter(r => r.verdict === "IN").length
+  const counterCount = reactions.filter(r => r.verdict === "COUNTER").length
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="rounded-2xl p-6" style={{ background: "linear-gradient(135deg,rgba(234,179,8,0.12),rgba(239,68,68,0.08))", border: "1px solid rgba(234,179,8,0.3)" }}>
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-2xl">🦈</span>
+          <div>
+            <h2 className="text-lg font-bold text-white">Shark Tank Simulator</h2>
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Pitch your startup to 5 AI Sharks. Get a deal or go home.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Pitch Setup */}
+      <div className="rounded-2xl p-6" style={{ background: "hsl(240,15%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+        <p className="text-xs uppercase tracking-widest mb-4" style={{ color: "rgba(255,255,255,0.35)" }}>Your Ask</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div>
+            <p className="text-xs mb-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>Investment Ask ($)</p>
+            <input
+              type="number" value={askAmount} onChange={e => setAskAmount(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl text-white text-sm outline-none"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", caretColor: "rgb(250,204,21)" }}
+              placeholder="250000"
+            />
+          </div>
+          <div>
+            <p className="text-xs mb-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>Equity Offered (%)</p>
+            <input
+              type="number" value={equityPct} onChange={e => setEquityPct(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl text-white text-sm outline-none"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", caretColor: "rgb(250,204,21)" }}
+              placeholder="10"
+            />
+          </div>
+          <div>
+            <p className="text-xs mb-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>Implied Valuation</p>
+            <div className="px-3 py-2.5 rounded-xl text-sm font-bold" style={{ background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.25)", color: "rgb(250,204,21)" }}>
+              {impliedValuation}
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={runSimulation}
+          disabled={loading || !v || !b}
+          className="w-full py-3.5 rounded-xl font-bold text-sm cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ background: "linear-gradient(135deg,rgba(239,68,68,0.9),rgba(234,179,8,0.8))", color: "white", boxShadow: "0 0 24px rgba(239,68,68,0.3)" }}
+        >
+          {loading ? "⏳ Sharks are deliberating..." : pitched ? "🔄 Pitch Again" : "🎙 Step Into the Tank"}
+        </button>
+      </div>
+
+      {/* Results */}
+      {pitched && reactions.length > 0 && (
+        <>
+          {/* Summary */}
+          <div className="rounded-2xl p-5 flex items-center gap-5" style={{ background: "hsl(240,15%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="text-center">
+              <p className="text-3xl font-bold" style={{ color: "rgb(74,222,128)" }}>{inCount}</p>
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>Sharks IN</p>
+            </div>
+            <div className="text-center">
+              <p className="text-3xl font-bold" style={{ color: "rgb(250,204,21)" }}>{counterCount}</p>
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>Counter Offers</p>
+            </div>
+            <div className="text-center">
+              <p className="text-3xl font-bold" style={{ color: "rgb(252,165,165)" }}>{reactions.length - inCount - counterCount}</p>
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>Sharks OUT</p>
+            </div>
+            <div className="ml-auto">
+              {inCount + counterCount >= 3
+                ? <span className="text-sm font-bold px-3 py-1.5 rounded-full" style={{ background: "rgba(34,197,94,0.15)", color: "rgb(74,222,128)", border: "1px solid rgba(34,197,94,0.3)" }}>🎉 Deal Likely!</span>
+                : inCount + counterCount >= 1
+                  ? <span className="text-sm font-bold px-3 py-1.5 rounded-full" style={{ background: "rgba(234,179,8,0.12)", color: "rgb(250,204,21)", border: "1px solid rgba(234,179,8,0.3)" }}>⚠️ Negotiate</span>
+                  : <span className="text-sm font-bold px-3 py-1.5 rounded-full" style={{ background: "rgba(239,68,68,0.12)", color: "rgb(252,165,165)", border: "1px solid rgba(239,68,68,0.3)" }}>🚪 All Out</span>
+              }
+            </div>
+          </div>
+
+          {/* Individual shark cards */}
+          <div className="space-y-3">
+            {reactions.map((reaction, i) => {
+              const shark = SHARKS.find(s => s.name === reaction.shark) || SHARKS[i]
+              return (
+                <div key={i} className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${reaction.verdict === "IN" ? "rgba(34,197,94,0.3)" : reaction.verdict === "COUNTER" ? "rgba(234,179,8,0.3)" : "rgba(239,68,68,0.2)"}` }}>
+                  <div className="px-5 py-3 flex items-center gap-3"
+                    style={{ background: reaction.verdict === "IN" ? "rgba(34,197,94,0.08)" : reaction.verdict === "COUNTER" ? "rgba(234,179,8,0.08)" : "rgba(239,68,68,0.06)" }}>
+                    <span className="text-xl">{shark.icon}</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-white">{reaction.shark}</p>
+                      <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{shark.trait}</p>
+                    </div>
+                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                      reaction.verdict === "IN" ? "" : reaction.verdict === "COUNTER" ? "" : ""
+                    }`} style={{
+                      background: reaction.verdict === "IN" ? "rgba(34,197,94,0.2)" : reaction.verdict === "COUNTER" ? "rgba(234,179,8,0.2)" : "rgba(239,68,68,0.2)",
+                      color: reaction.verdict === "IN" ? "rgb(74,222,128)" : reaction.verdict === "COUNTER" ? "rgb(250,204,21)" : "rgb(252,165,165)",
+                    }}>
+                      {reaction.verdict === "IN" ? "✅ I'M IN" : reaction.verdict === "COUNTER" ? "🤝 COUNTER" : "❌ I'M OUT"}
+                    </span>
+                  </div>
+                  <div className="px-5 py-4" style={{ background: "rgba(255,255,255,0.01)" }}>
+                    <p className="text-sm leading-relaxed italic" style={{ color: "rgba(255,255,255,0.7)" }}>
+                      &ldquo;{reaction.comment}&rdquo;
+                    </p>
+                    {reaction.counter_offer && (
+                      <div className="mt-3 rounded-xl p-3" style={{ background: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.2)" }}>
+                        <p className="text-xs uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.6rem" }}>Counter Offer</p>
+                        <p className="text-sm font-medium" style={{ color: "rgb(250,204,21)" }}>{reaction.counter_offer}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function PlanDisplay({ plan }: { plan: BusinessPlan }) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<Tab>("plan")
@@ -434,10 +666,11 @@ export default function PlanDisplay({ plan }: { plan: BusinessPlan }) {
         <div className="flex gap-1 mb-6 p-1 rounded-xl overflow-x-auto"
           style={{ background: "hsl(240,15%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}>
           {([
-            { id: "plan",    label: "Business Plan", icon: "📄" },
-            { id: "deck",    label: "Pitch Deck",     icon: "🎯" },
-            { id: "roadmap", label: "90-Day Plan",    icon: "🗺️" },
-            { id: "audit",   label: "Audit Trail",    icon: "🔒" },
+            { id: "plan",    label: "Business Plan",  icon: "📄" },
+            { id: "deck",    label: "Pitch Deck",      icon: "🎯" },
+            { id: "roadmap", label: "90-Day Plan",     icon: "🗺️" },
+            { id: "tank",    label: "🦈 Shark Tank",    icon: "" },
+            { id: "audit",   label: "Audit Trail",     icon: "🔒" },
           ] as { id: Tab; label: string; icon: string }[]).map(tab => (
             <button
               key={tab.id}
@@ -593,29 +826,60 @@ export default function PlanDisplay({ plan }: { plan: BusinessPlan }) {
               <div className="rounded-2xl p-6 mb-6"
                 style={{ background: "hsl(240,15%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}>
                 <p className="text-xs uppercase tracking-widest mb-4" style={{ color: "rgba(255,255,255,0.35)" }}>Business Plan</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                {/* Problem / Solution / USP */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
                   {([
-                    { label:"Problem", key:"problem", border:"rgba(239,68,68,0.5)" },
-                    { label:"Solution", key:"solution", border:"rgba(34,197,94,0.5)" },
-                    { label:"USP", key:"unique_value_proposition", border:"rgba(124,58,237,0.5)" },
-                  ]).map(({ label, key, border }) => (
-                    <div key={key} className="p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", borderTop: `2px solid ${border}` }}>
-                      <p className="text-xs uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.65rem" }}>{label}</p>
-                      <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.75)" }}>{b[key as keyof typeof b] as string}</p>
+                    { label: "Problem",  value: b.problem,                    border: "rgba(239,68,68,0.5)",    bg: "rgba(239,68,68,0.04)"    },
+                    { label: "Solution", value: b.solution,                   border: "rgba(34,197,94,0.5)",    bg: "rgba(34,197,94,0.04)"    },
+                    { label: "USP",      value: b.unique_value_proposition,   border: "rgba(124,58,237,0.5)",   bg: "rgba(124,58,237,0.04)"   },
+                  ]).map(({ label, value, border, bg }) => (
+                    <div key={label} className="p-4 rounded-xl flex flex-col gap-2"
+                      style={{ background: bg, borderTop: `2px solid ${border}` }}>
+                      <p className="text-xs uppercase tracking-widest font-semibold"
+                        style={{ color: border.replace("0.5)", "0.7)"), fontSize: "0.6rem" }}>{label}</p>
+                      {value
+                        ? <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.8)" }}>{value}</p>
+                        : <p className="text-xs italic" style={{ color: "rgba(255,255,255,0.25)" }}>Not yet generated — regenerate your plan</p>
+                      }
                     </div>
                   ))}
                 </div>
-                <details className="mb-2">
-                  <summary className="text-sm cursor-pointer font-medium py-2" style={{ color: "hsl(258,80%,78%)" }}>Revenue Model ›</summary>
-                  <p className="text-sm mt-1 pl-4" style={{ color: "rgba(255,255,255,0.6)" }}>{b.revenue_model}</p>
-                </details>
-                <details>
-                  <summary className="text-sm cursor-pointer font-medium py-2" style={{ color: "hsl(258,80%,78%)" }}>Go-to-Market Strategy ›</summary>
-                  <p className="text-sm mt-1 pl-4" style={{ color: "rgba(255,255,255,0.6)" }}>{b.go_to_market}</p>
-                </details>
+                {/* Revenue Model */}
+                {b.revenue_model && (
+                  <div className="rounded-xl p-4 mb-3"
+                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <p className="text-xs uppercase tracking-widest mb-2 font-semibold"
+                      style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.6rem" }}>Revenue Model</p>
+                    <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.75)" }}>{b.revenue_model}</p>
+                    {b.revenue_streams && b.revenue_streams.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {b.revenue_streams.map((s, i) => (
+                          <span key={i} className="text-xs px-2 py-0.5 rounded-full"
+                            style={{ background: "rgba(34,197,94,0.1)", color: "rgb(74,222,128)", border: "1px solid rgba(34,197,94,0.2)" }}>
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* Go-to-Market */}
+                {b.go_to_market && (
+                  <div className="rounded-xl p-4"
+                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <p className="text-xs uppercase tracking-widest mb-2 font-semibold"
+                      style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.6rem" }}>Go-to-Market Strategy</p>
+                    <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.75)" }}>{b.go_to_market}</p>
+                  </div>
+                )}
+                {/* Fallback if both revenue model and GTM are missing */}
+                {!b.revenue_model && !b.go_to_market && (
+                  <p className="text-xs italic text-center py-4" style={{ color: "rgba(255,255,255,0.2)" }}>
+                    Revenue model and Go-to-Market details will appear here once the plan is fully generated.
+                  </p>
+                )}
               </div>
             )}
-
             {f && (
               <div className="rounded-2xl p-6 mb-6"
                 style={{ background: "hsl(240,15%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}>
@@ -716,6 +980,9 @@ export default function PlanDisplay({ plan }: { plan: BusinessPlan }) {
 
         {/* ── 90-DAY ROADMAP TAB ── */}
         {activeTab === "roadmap" && <RoadmapTab plan={plan} />}
+
+        {/* ── SHARK TANK TAB ── */}
+        {activeTab === "tank" && <SharkTankTab plan={plan} />}
 
         {/* ── AUDIT TRAIL TAB ── */}
         {activeTab === "audit" && (

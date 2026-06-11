@@ -634,16 +634,19 @@ class PersonaAgent(BaseSpecialist):
             if direction else ""
         )
         return f"""For startup: "{idea}"{direction_note}
-Create 3 customer personas. Return ONLY valid JSON:
+Create 3 detailed customer personas. Return ONLY valid JSON — never omit any field:
 {{
   "personas": [
     {{
       "name": "string",
       "age": "string",
       "job": "string",
+      "location": "string (city/region)",
+      "income_level": "string (e.g. $40k-$60k/yr)",
       "pain_point": "string",
       "willingness_to_pay": "string",
-      "how_they_find_us": "string"
+      "how_they_find_us": "string",
+      "behavior_patterns": ["pattern1", "pattern2", "pattern3"]
     }}
   ]
 }}"""
@@ -666,16 +669,16 @@ class PlanAgent(BaseSpecialist):
 
     async def build_prompt(self, ctx: dict) -> str:
         idea = ctx["idea"]
-        return f"""Write a business plan for: "{idea}"
-Return ONLY valid JSON:
+        return f"""Write a comprehensive business plan for: "{idea}"
+Return ONLY valid JSON — every field is REQUIRED, never leave any field empty or null:
 {{
-  "problem": "string",
-  "solution": "string",
-  "unique_value_proposition": "string",
-  "revenue_model": "string",
-  "revenue_streams": ["stream1", "stream2"],
-  "go_to_market": "string",
-  "key_milestones": [{{"month": 1, "milestone": "string"}}]
+  "problem": "string (2-3 sentences describing the core problem)",
+  "solution": "string (2-3 sentences describing your solution)",
+  "unique_value_proposition": "string (1 sentence USP)",
+  "revenue_model": "string (how the business makes money)",
+  "revenue_streams": ["stream1", "stream2", "stream3"],
+  "go_to_market": "string (specific GTM strategy, channels and tactics)",
+  "key_milestones": [{{"month": 1, "milestone": "string"}}, {{"month": 3, "milestone": "string"}}, {{"month": 6, "milestone": "string"}}]
 }}"""
 
 

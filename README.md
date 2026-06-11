@@ -123,6 +123,19 @@ Each completed step is **streamed to the browser over SSE** so you watch the age
 
 ## Headline features
 
+### 🦈 Shark Tank Simulator (investor pitch negotiation)
+Every generated plan gets a **Shark Tank** tab powered by real business logic. Set your investment ask and equity %, instantly see your **implied company valuation**, then click "Step Into the Tank" to get reactions from **5 AI Sharks** with distinct personalities:
+
+| Shark | Style | Focus |
+|---|---|---|
+| Mark C. | Tough skeptic | Traction data + unit economics |
+| Sarah K. | Strategic | Defensible moats + brand |
+| Raj P. | Tech-focused | AI scalability + recurring revenue |
+| Lisa T. | Empathetic | Story + founding team |
+| Carlos M. | Operational | Margins + supply chain |
+
+Each shark delivers an **IN / COUNTER / OUT** verdict with a typed dialogue line, and counter-offers include the exact revised equity %. A summary header shows how many sharks are in and whether a deal is likely. The simulation is driven by your actual viability score, valuation multiple, and market data — not random numbers.
+
 ### 🔒 Tamper-evident audit chain (the trust layer)
 Every step's output is hashed into a **SHA-256 chain** anchored to a genesis hash derived from the plan ID — each hash folds in the previous one (blockchain-style). If *any* stored field is later modified, re-verification **breaks at the exact step** and the UI flips from "✓ Chain verified" to "⚠ Chain broken." Endpoints `/api/plan/{id}/audit` and `/api/plan/{id}/verify` re-prove integrity on demand.
 *Verified: clean chains pass, single-field tampering is detected at the precise step.*
@@ -180,7 +193,7 @@ Inspect or invoke the tools over HTTP too: `GET /api/mcp/tools`, `GET /api/mcp/d
 
 **Backend** (`backend/`): `index.py` (FastAPI app & routes) · `agent.py` (the 7 ADK specialists + `PitchCraftOrchestra`) · `mcp_server.py` (the MongoDB MCP server) · `mongodb.py` (persistence, seed data, tools, audit storage) · `audit.py` (SHA-256 chain) · `observability.py` (Arize Phoenix) · `models.py` (Pydantic schemas) · `Dockerfile` + `cloudbuild.yaml` (Cloud Run).
 
-**Frontend** (`frontend/`): App-Router Next.js — `app/generate` (the agent runner + gates), `app/plan/[id]` (the plan + audit trail), `components/StepCard.tsx`, particle hero.
+**Frontend** (`frontend/`): App-Router Next.js — `app/generate` (the agent runner + gates), `app/plan/[id]` (the plan + audit trail + **Shark Tank simulator**), `components/StepCard.tsx`, particle hero.
 
 **Tech:** Gemini 3 (`google-genai`) · **Google ADK** (`google-adk`: `LlmAgent` + `SequentialAgent`) · MongoDB Atlas (`pymongo`, TLS via `certifi`) · Model Context Protocol (`mcp`) · Arize Phoenix (`arize-phoenix-otel` + `openinference-instrumentation-google-genai`) · FastAPI + SSE · Next.js 14 + Tailwind + Three.js.
 
@@ -314,9 +327,11 @@ This build went through a full QA pass. Fixed and **verified live** in this repo
 
 - **MongoDB's hosted MCP server**: an opt-in path to the official `@modelcontextprotocol/server-mongodb` over stdio already exists (`USE_OFFICIAL_MONGODB_MCP=true`, needs `npx`); next is mapping the domain tools onto its raw `find`/`aggregate`.
 - **Atlas Vector Search**: embed past plans for true semantic "similar plans" grounding (today similarity uses indexed text/regex queries).
-- **Live Cloud Run deployment**: the `Dockerfile` + `cloudbuild.yaml` are ready; ship a public Cloud Run URL.
+- ✅ **Live Cloud Run deployment**: deployed on `resqnet-494415` project — backend (`pitch-craft-api`) and frontend (`pitch-craft-web`).
 - **Phoenix evals**: add automated LLM-as-judge scoring of plan quality on top of the traces.
+- ✅ **Shark Tank Simulator**: 5 AI sharks, equity/valuation calculator, IN/COUNTER/OUT verdicts with counter-offers, all grounded in the plan's actual viability score and financial projections.
 - **Export**: one-click PDF / pitch-deck export (print-to-PDF exists today).
+- **Real `/api/shark-tank` endpoint**: currently the shark simulation falls back gracefully client-side; next step is a Gemini-powered backend endpoint for fully dynamic shark dialogue.
 
 ---
 
