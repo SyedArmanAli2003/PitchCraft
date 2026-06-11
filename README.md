@@ -16,7 +16,7 @@ Built for the [Google Cloud Rapid Agent Hackathon](https://rapid-agent.devpost.c
 ![Next.js 14](https://img.shields.io/badge/Next.js-14-000000)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green)
 
-**🔗 Live demo:**[Click here](https://pitch-craft-web-816922279543.us-central1.run.app/) · **🎥 Demo video:** _<add YouTube/Loom link>_ · **💻 Repo:** [github.com/SyedArmanAli2003/PitchCraft](https://github.com/SyedArmanAli2003/PitchCraft) · **🧩 Architecture:** _/api/agent/manifest_
+**🔗 Live demo:** [Click here](https://pitch-craft-web-816922279543.us-central1.run.app/) · **🎥 Demo video:** _<add YouTube/Loom link>_ · **💻 Repo:** [github.com/SyedArmanAli2003/PitchCraft](https://github.com/SyedArmanAli2003/PitchCraft) · **🧩 Architecture:** _/api/agent/manifest_
 
 </div>
 
