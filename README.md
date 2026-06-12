@@ -6,7 +6,7 @@
 
 **A multi-agent AI system (Google ADK) where seven named specialists hand off to each other — grounded in MongoDB over MCP, traced end-to-end in Arize Phoenix, and sealed with a tamper-evident audit chain.**
 
-Built for the [Google Cloud Rapid Agent Hackathon](https://rapid-agent.devpost.com/) · MongoDB & Arize tracks
+
 
 ![Gemini 3](https://img.shields.io/badge/Gemini%203-Flash%20%2B%203.5%20%2F%202.5%20cascade-7c3aed)
 ![Google ADK](https://img.shields.io/badge/Google%20ADK-LlmAgent%20%2B%20SequentialAgent-4285F4)
