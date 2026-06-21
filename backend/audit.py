@@ -21,6 +21,24 @@ def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _normalize_numbers(obj):
+    """Normalize numbers to survive a MongoDB/JSONB round-trip.
+
+    MongoDB BSON may return floats as ints for whole numbers (18.0 -> 18),
+    so we mirror that normalization (applied identically at build AND verify)
+    so legitimate plans always verify, while real tampering still changes the hash.
+    """
+    if isinstance(obj, bool):
+        return obj
+    if isinstance(obj, float):
+        return int(obj) if obj.is_integer() else round(obj, 6)
+    if isinstance(obj, dict):
+        return {k: _normalize_numbers(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_normalize_numbers(v) for v in obj]
+    return obj
+
+
 def genesis_hash(plan_id: str) -> str:
     """Anchor hash for step 1 — SHA-256 of the plan_id."""
     return _sha256(str(plan_id))
@@ -30,9 +48,12 @@ def hash_step(step_number: int, step_name: str, data, previous_hash: str) -> str
     """SHA-256 of step_number + step_name + canonical-JSON(data) + previous_hash.
 
     `sort_keys=True` makes the JSON canonical so key ordering can never change
-    the hash; `|` delimiters keep the concatenated fields unambiguous.
+    the hash; `|` delimiters keep the concatenated fields unambiguous. Numbers
+    are normalized so a BSON round-trip (float 18.0 -> int 18) can't falsely
+    break the chain.
     """
-    canonical = json.dumps(data, sort_keys=True, default=str, separators=(",", ":"))
+    normalized = _normalize_numbers(data)
+    canonical = json.dumps(normalized, sort_keys=True, default=str, separators=(",", ":"))
     return _sha256(f"{step_number}|{step_name}|{canonical}|{previous_hash}")
 
 

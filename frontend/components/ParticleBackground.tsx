@@ -9,10 +9,16 @@ export default function ParticleBackground() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    renderer.setSize(window.innerWidth, window.innerHeight)
-    renderer.setClearColor(0x000000, 0)
+    let renderer: THREE.WebGLRenderer
+    try {
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+      renderer.setSize(window.innerWidth, window.innerHeight)
+      renderer.setClearColor(0x000000, 0)
+    } catch (e) {
+      console.warn("WebGL not supported or context creation failed:", e)
+      return
+    }
 
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000)
@@ -90,6 +96,7 @@ export default function ParticleBackground() {
     scene.add(lines)
 
     let id: number, t = 0
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
     const animate = () => {
       id = requestAnimationFrame(animate)
       t += 0.006
@@ -104,7 +111,23 @@ export default function ParticleBackground() {
       blob1.rotation.y = t*0.3
       renderer.render(scene, camera)
     }
-    animate()
+    if (reduceMotion) {
+      renderer.render(scene, camera)   // single static frame, no loop
+    } else {
+      animate()
+    }
+
+    // Pause the render loop when the tab is hidden to save CPU/battery.
+    const onVisibility = () => {
+      if (reduceMotion) return
+      if (document.hidden) {
+        cancelAnimationFrame(id)
+      } else {
+        cancelAnimationFrame(id)
+        animate()
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibility)
 
     const onResize = () => {
       camera.aspect = window.innerWidth / window.innerHeight
@@ -117,6 +140,7 @@ export default function ParticleBackground() {
       cancelAnimationFrame(id)
       window.removeEventListener("mousemove", onMouseMove)
       window.removeEventListener("resize", onResize)
+      document.removeEventListener("visibilitychange", onVisibility)
       renderer.dispose(); geo.dispose(); mat.dispose()
       lineGeo.dispose(); tex.dispose()
     }

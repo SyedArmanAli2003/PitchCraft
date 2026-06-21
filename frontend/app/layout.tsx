@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next"
 import { Sora } from "next/font/google"
 import "./globals.css"
 import PWAHead from "@/components/PWAHead"
+import ChatBot from "@/components/ChatBot"
 
 const sora = Sora({
   subsets: ["latin"],
@@ -45,6 +46,7 @@ export default function RootLayout({
       </head>
       <body className="font-sora antialiased">
         {children}
+        <ChatBot />
       </body>
     </html>
   )

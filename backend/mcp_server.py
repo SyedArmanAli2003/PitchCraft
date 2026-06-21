@@ -23,7 +23,7 @@ can be consumed two ways:
   2. **In-process by the PitchCraft agent** over the real MCP protocol via an
      in-memory client↔server session (see `agent.call_mcp_tool`). The agent's
      market-research (Step 2) and financial (Step 5) grounding flows through
-     these MCP tool calls — MongoDB is literally giving the agent its
+     these MCP tool calls — MongoDB Atlas is literally giving the agent its
      "superpowers" through MCP.
 
 The tools are thin, well-described wrappers over `mongodb.py`.

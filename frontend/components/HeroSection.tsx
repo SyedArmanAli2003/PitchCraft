@@ -47,7 +47,7 @@ export default function HeroSection() {
           }}
         >
           <span className="animate-spin-slow inline-block leading-none">✦</span>
-          7-step AI agent · MongoDB · Gemini Flash
+          7-step AI agent · InsForge · Gemini Flash
         </div>
 
         {/* Heading */}
@@ -85,7 +85,7 @@ export default function HeroSection() {
             animationDelay: "0.5s",
           }}
         >
-          A 7-step AI agent powered by Gemini and MongoDB. Validates your idea,
+          A 7-step AI agent powered by Gemini and InsForge. Validates your idea,
           researches the market, builds personas, writes the full plan,
           projects financials, and analyzes risk — all under 60 seconds.
         </p>
@@ -138,7 +138,7 @@ export default function HeroSection() {
         {/* Tech pills */}
         <div className="animate-fade-up flex items-center flex-wrap gap-2 mt-7" style={{ animationDelay: "0.78s" }}>
           <span style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.72rem" }}>Powered by</span>
-          {["🍃 MongoDB","✦ Gemini Flash","⚡ FastAPI","◈ Google Cloud"].map(l => (
+          {["◆ InsForge","✦ Gemini Flash","🔴 Realtime","◈ Google Cloud"].map(l => (
             <span key={l} style={{
               background: "rgba(255,255,255,0.04)",
               border: "1px solid rgba(255,255,255,0.09)",
@@ -153,7 +153,7 @@ export default function HeroSection() {
         {/* Live counter */}
         <p className="animate-fade-up mt-3" style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.7rem", animationDelay: "0.9s" }}>
           {planCount !== null ? `${planCount} business plans generated · ` : ""}
-          Rapid Agent Hackathon 2026 · MongoDB Partner Track
+          Rapid Agent Hackathon 2026 · InsForge Launch Week 2
         </p>
       </div>
     </section>

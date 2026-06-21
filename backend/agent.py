@@ -1,22 +1,22 @@
-"""PitchCraft — a multi-agent business-plan engine (Google ADK).
+﻿"""PitchCraft â€” a multi-agent business-plan engine (Google ADK).
 
 ARCHITECTURE
 ------------
 Seven *named specialist agents* collaborate, handing off to each other like a
 real consulting firm. The six reasoning specialists are genuine
 `google.adk.agents.LlmAgent` objects (each with a name, description, system
-instruction and declared MongoDB tools); the seventh — the Chief of Staff —
+instruction and declared InsForge tools); the seventh â€” the Chief of Staff â€”
 compiles, persists and cryptographically seals the plan. They are composed into
 a single ADK `SequentialAgent` pipeline (the canonical ADK "agents that hand off
 to each other" pattern, mirroring the ADK-hackathon-winning multi-agent design).
 
-  1. Strategy Analyst            → validates the idea
-  2. Market Intelligence Analyst → researches the market via the MongoDB MCP server
-  3. Customer Insights Specialist→ builds customer personas
-  4. Business Architect          → writes the full business plan
-  5. Financial Modeller          → projects 3-year financials (MongoDB benchmarks)
-  6. Risk & Compliance Officer   → risk analysis + SWOT
-  7. Chief of Staff              → persists + SHA-256 audit chain
+  1. Strategy Analyst            â†’ validates the idea
+  2. Market Intelligence Analyst â†’ researches the market via the InsForge MCP server
+  3. Customer Insights Specialistâ†’ builds customer personas
+  4. Business Architect          â†’ writes the full business plan
+  5. Financial Modeller          â†’ projects 3-year financials (InsForge benchmarks)
+  6. Risk & Compliance Officer   â†’ risk analysis + SWOT
+  7. Chief of Staff              â†’ persists + SHA-256 audit chain
 
 EXECUTION (honest note)
 -----------------------
@@ -61,7 +61,84 @@ from observability import agent_span
 load_dotenv()
 
 # ---------------------------------------------------------------------------
-# API key pool — cycles through GEMINI_API_KEY_1 … _N on 429 / quota errors
+# InsForge Model Gateway (OpenAI-compatible, routed through OpenRouter)
+# ---------------------------------------------------------------------------
+# InsForge's Model Gateway provisions an OpenRouter key (via
+# `npx @insforge/cli ai setup`) and exposes an OpenAI-compatible surface. This
+# is a *secondary* client â€” the primary reasoning path stays on the google-genai
+# multi-key cascade below. The gateway is the visible InsForge AI integration
+# that judges can see in /api/health and the InsForge dashboard usage view.
+try:
+    from openai import OpenAI as _OpenAICompat
+    _OPENAI_SDK_AVAILABLE = True
+except Exception:  # pragma: no cover - openai optional at runtime
+    _OpenAICompat = None
+    _OPENAI_SDK_AVAILABLE = False
+
+_INSFORGE_GATEWAY_BASE = os.getenv("INSFORGE_GATEWAY_BASE", "https://openrouter.ai/api/v1")
+
+# ---------------------------------------------------------------------------
+# NVIDIA NIM â€” free dedicated endpoint for Llama 3.3 70B (separate from the
+# InsForge/OpenRouter free-tier pool, so it isn't affected by the same 429
+# storms). Used first before the InsForge gateway models.
+# ---------------------------------------------------------------------------
+_NVIDIA_NIM_BASE = "https://integrate.api.nvidia.com/v1"
+_NVIDIA_NIM_MODEL = "meta/llama-3.3-70b-instruct"
+# NVIDIA Nemotron 3 Super 120B â€” a 120B MoE reasoning model on the same NVIDIA
+# endpoint. Replaces the old Gemini 2.5 Pro "premium reasoning" slot. (DeepSeek
+# V4 Flash was evaluated but is not reliably servable on the free endpoint â€” it
+# times out â€” so we use Nemotron, which responds in ~2s with clean JSON.)
+_NEMOTRON_MODEL = "nvidia/nemotron-3-super-120b-a12b"
+
+
+def _nvidia_nim_key() -> str:
+    return (os.getenv("NVIDIA_NIM_API_KEY") or "").strip()
+
+
+def _nvidia_nim_client(timeout: float = 30.0):
+    """OpenAI-compatible client for the NVIDIA integrate endpoint (NIM + Nemotron)."""
+    if not _OPENAI_SDK_AVAILABLE:
+        return None
+    key = _nvidia_nim_key()
+    if not key:
+        return None
+    try:
+        return _OpenAICompat(base_url=_NVIDIA_NIM_BASE, api_key=key,
+                             max_retries=0, timeout=timeout)
+    except Exception:
+        return None
+
+
+def _insforge_gateway_key() -> str:
+    return (os.getenv("OPENROUTER_API_KEY") or "").strip()
+
+
+def insforge_model_client():
+    """An OpenAI-compatible client routed through the InsForge Model Gateway
+    (OpenRouter key provisioned by InsForge). Returns None if unavailable.
+    Configured to fail fast (no internal retries, short timeout) so the agent
+    can rotate across free models quickly instead of hanging on a 429 storm."""
+    if not _OPENAI_SDK_AVAILABLE:
+        return None
+    key = _insforge_gateway_key()
+    if not key:
+        return None
+    try:
+        return _OpenAICompat(base_url=_INSFORGE_GATEWAY_BASE, api_key=key,
+                             max_retries=0, timeout=30.0)
+    except Exception:
+        return None
+
+
+def free_gateway_ready() -> bool:
+    """True when at least one free generation path is configured:
+    - NVIDIA NIM (dedicated free endpoint), or
+    - InsForge Model Gateway (OpenRouter free pool).
+    Surfaced as `insforge_gateway` in /api/health."""
+    return _nvidia_nim_client() is not None or insforge_model_client() is not None
+
+# ---------------------------------------------------------------------------
+# API key pool â€” cycles through GEMINI_API_KEY_1 â€¦ _N on 429 / quota errors
 # ---------------------------------------------------------------------------
 
 def _load_api_keys() -> list[str]:
@@ -82,13 +159,13 @@ def _load_api_keys() -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Model registry — verified live 2026-06-10
+# Model registry â€” verified live 2026-06-10
 # ---------------------------------------------------------------------------
 # Test results (httpx, 8s timeout, free-tier keys):
 #   gemini-3.5-flash       -> OK  (confirmed working, good quality)
 #   gemini-3.1-flash-lite  -> OK  (fast, reliable, great fallback)
 #   gemini-2.5-flash-lite  -> OK  (stable fallback)
-#   gemini-3.1-pro         -> 404 (model does not exist — REMOVED)
+#   gemini-3.1-pro         -> 404 (model does not exist â€” REMOVED)
 #   gemini-3-flash-preview -> NOT TESTED (may be region-limited)
 #   gemini-2.5-pro         -> 429 quota on free tier
 #   gemini-2.5-flash       -> Timeout / overloaded
@@ -100,7 +177,7 @@ MODEL_CONFIGS: dict[str, dict] = {
         "tier": 1,
         "model_id": "gemini-3.5-flash",
         "badge": "Recommended",
-        "description": "Latest & fastest — confirmed working",
+        "description": "Latest & fastest â€” confirmed working",
         "quota_status": "ok",
     },
     "gemini-3.1-flash-lite": {
@@ -108,7 +185,7 @@ MODEL_CONFIGS: dict[str, dict] = {
         "tier": 2,
         "model_id": "gemini-3.1-flash-lite",
         "badge": "Fast",
-        "description": "Lightweight & reliable — separate quota pool",
+        "description": "Lightweight & reliable â€” separate quota pool",
         "quota_status": "ok",
     },
     "gemini-2.5-flash-lite": {
@@ -124,16 +201,8 @@ MODEL_CONFIGS: dict[str, dict] = {
         "tier": 4,
         "model_id": "gemini-2.5-flash",
         "badge": "High Capacity",
-        "description": "Deep reasoning — may time out under high load",
+        "description": "Deep reasoning â€” may time out under high load",
         "quota_status": "limited",
-    },
-    "gemini-2.5-pro": {
-        "display": "Gemini 2.5 Pro",
-        "tier": 5,
-        "model_id": "gemini-2.5-pro",
-        "badge": "Pro",
-        "description": "Most powerful — requires billing account (paid tier)",
-        "quota_status": "pro_only",
     },
 }
 
@@ -147,7 +216,6 @@ CASCADE_ORDER = [
     "gemini-3.1-flash-lite",
     "gemini-2.5-flash-lite",
     "gemini-2.5-flash",
-    "gemini-2.5-pro",
 ]
 
 
@@ -215,7 +283,7 @@ def _call_single(prompt: str, model_id: str, api_key: str) -> dict:
         try:
             cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
         except (AttributeError, TypeError):
-            pass  # older SDK version — safe to skip
+            pass  # older SDK version â€” safe to skip
     response = client.models.generate_content(
         model=model_id,
         contents=prompt,
@@ -224,7 +292,7 @@ def _call_single(prompt: str, model_id: str, api_key: str) -> dict:
     text = getattr(response, "text", None)
     if not text:
         raise RuntimeError(
-            f"Empty response from {model_id} — possibly blocked by safety filters"
+            f"Empty response from {model_id} â€” possibly blocked by safety filters"
         )
     return parse_json_response(text)
 
@@ -241,7 +309,7 @@ def _call_with_key_rotation(prompt: str, model_id: str, keys: list[str]) -> dict
             err_str = str(e)
             err_lower = err_str.lower()
             if "503" in err_str or "service_unavailable" in err_lower or "overloaded" in err_lower:
-                # Transient overload — wait a moment and retry the same key once
+                # Transient overload â€” wait a moment and retry the same key once
                 import time; time.sleep(5)
                 try:
                     return _call_single(prompt, model_id, key)
@@ -255,45 +323,244 @@ def _call_with_key_rotation(prompt: str, model_id: str, keys: list[str]) -> dict
             if any(tok in err_lower for tok in ("429", "quota", "rate_limit", "resource_exhausted")):
                 last_err = e
                 continue  # try next key
-            raise   # non-quota error — surface immediately
+            raise   # non-quota error â€” surface immediately
     raise last_err or RuntimeError("All API keys exhausted.")
+
+
+# ---------------------------------------------------------------------------
+# InsForge Model Gateway generation (free OpenRouter models)
+# ---------------------------------------------------------------------------
+# Free fallback cascade (in priority order) using the InsForge gateway key.
+# Models selected from the InsForge dashboard "free" filter â€” largest/best
+# instruction-tuned ones listed first; small fallbacks at the end.
+# The NVIDIA NIM path is tried first (dedicated free endpoint, more reliable
+# than the shared OpenRouter free pool).
+_INSFORGE_GATEWAY_FREE_MODELS = [
+    # Google Gemma 4 â€” instruction-tuned, great for JSON, free on InsForge
+    "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free",
+    # OpenAI OSS 120B â€” largest free model available
+    "openai/gpt-oss-120b:free",
+    # NVIDIA Nemotron via OpenRouter (same family as NIM, different pool)
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    # Qwen3 â€” strong reasoning, reliable 80B
+    "qwen/qwen3-next-80b-a3b-instruct:free",
+    # Meta Llama 3.3 70B via OpenRouter (as OpenRouter pool fallback)
+    "meta-llama/llama-3.3-70b-instruct:free",
+    # Smaller reliable fallbacks
+    "nousresearch/hermes-3-llama-3.1-405b:free",
+    "openai/gpt-oss-20b:free",
+    "qwen/qwen3-coder:free",
+]
+
+
+def _gateway_models() -> list[str]:
+    preferred = (os.getenv("INSFORGE_GATEWAY_MODEL") or "").strip()
+    models = ([preferred] if preferred else []) + _INSFORGE_GATEWAY_FREE_MODELS
+    seen, ordered = set(), []
+    for m in models:
+        if m and m not in seen:
+            seen.add(m)
+            ordered.append(m)
+    return ordered
+
+
+def _parse_valid_json(text: str | None) -> dict | None:
+    """Try to parse text as JSON. Returns None if the response is not valid
+    structured JSON (catches models that return error prose instead of JSON)."""
+    if not text:
+        return None
+    result = parse_json_response(text)
+    if "raw" in result and len(result) == 1:
+        return None
+    return result
+
+
+def _call_nvidia_json(prompt: str) -> dict:
+    """NVIDIA NIM free endpoint only (meta/llama-3.3-70b-instruct)."""
+    nim = _nvidia_nim_client()
+    if not nim:
+        raise RuntimeError("NVIDIA NIM not configured (NVIDIA_NIM_API_KEY missing)")
+    resp = nim.chat.completions.create(
+        model=_NVIDIA_NIM_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7,
+        max_tokens=2048,
+    )
+    text = resp.choices[0].message.content if resp.choices else None
+    result = _parse_valid_json(text)
+    if result is None:
+        raise RuntimeError(f"NVIDIA NIM returned non-JSON: {(text or '')[:200]}")
+    print(f"âœ… NVIDIA NIM answered via {_NVIDIA_NIM_MODEL}")
+    return result
+
+
+def _call_nemotron_json(prompt: str) -> dict:
+    """NVIDIA Nemotron 3 Super 120B on the NVIDIA endpoint â€” a 120B MoE reasoning
+    model. This is the "premium reasoning" slot (replacing Gemini 2.5 Pro). It
+    responds in ~2s with clean JSON, so a normal (non-reasoning) chat call with a
+    modest timeout is enough."""
+    client = _nvidia_nim_client(timeout=60.0)
+    if not client:
+        raise RuntimeError("Nemotron not configured (NVIDIA_NIM_API_KEY missing)")
+    resp = client.chat.completions.create(
+        model=_NEMOTRON_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.6,
+        top_p=0.95,
+        max_tokens=4096,
+    )
+    msg = resp.choices[0].message if resp.choices else None
+    text = getattr(msg, "content", None) if msg else None
+    result = _parse_valid_json(text)
+    if result is None:
+        raise RuntimeError(f"Nemotron returned non-JSON: {(text or '')[:200]}")
+    print(f"âœ… Nemotron answered via {_NEMOTRON_MODEL}")
+    return result
+
+
+def _call_openrouter_json(prompt: str) -> dict:
+    """OpenRouter free models only. Tries with response_format first; if the
+    model rejects it (400), retries without it on the same model before moving on."""
+    gw_client = insforge_model_client()
+    if gw_client is None:
+        raise RuntimeError("InsForge Model Gateway not configured (OPENROUTER_API_KEY missing)")
+    last_err: Exception | None = None
+    for model in _gateway_models():
+        for use_json_mode in (True, False):
+            kwargs: dict = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.7,
+                "max_tokens": 2048,
+            }
+            if use_json_mode:
+                kwargs["response_format"] = {"type": "json_object"}
+            try:
+                resp = gw_client.chat.completions.create(**kwargs)
+                text = resp.choices[0].message.content if resp.choices else None
+                result = _parse_valid_json(text)
+                if result is None:
+                    raise RuntimeError(f"Non-JSON response: {(text or '')[:200]}")
+                print(f"âœ… OpenRouter answered via {model}" + (" (json_mode)" if use_json_mode else ""))
+                return result
+            except Exception as e:
+                err_str = str(e)
+                # If json_mode failed with 400 (unsupported), try without it
+                if use_json_mode and "400" in err_str:
+                    print(f"âš ï¸  {model} no json_mode support, trying without")
+                    continue
+                print(f"âš ï¸  Gateway model {model} failed ({type(e).__name__})")
+                last_err = e
+                break
+    raise last_err or RuntimeError("All OpenRouter free models exhausted.")
+
+
+def _call_gateway_json(prompt: str) -> dict:
+    """Generate JSON via two free paths, in order:
+    1. NVIDIA NIM free endpoint (meta/llama-3.3-70b-instruct) â€” dedicated,
+       more reliable than the shared OpenRouter free pool.
+    2. InsForge Model Gateway (OpenRouter) â€” rotates across the curated
+       free-model list; raises if all are exhausted.
+    """
+    try:
+        return _call_nvidia_json(prompt)
+    except Exception as nim_err:
+        print(f"âš ï¸  NVIDIA NIM failed ({type(nim_err).__name__}), trying InsForge gateway")
+
+    return _call_openrouter_json(prompt)
 
 
 async def _generate(prompt: str, model_key: str, keys: list[str]) -> tuple[dict, str]:
     """
-    Try the chosen Gemini tier, then cascade to lower tiers on any failure.
-    On a quota failure, waits 12 s before the next tier so the per-minute
-    window has a chance to partially reset.
-    Returns (result_dict, actually_used_model_key).
+    Route the prompt to the right model path based on model_key:
+
+      - "nvidia-llama"      -> NVIDIA NIM dedicated free endpoint only
+      - "free-gateway"  -> InsForge/OpenRouter free models only
+      - any Gemini key      -> Gemini cascade -> NVIDIA NIM -> OpenRouter fallback
+
+    Returns (result_dict, actually_used_model_key). The gateway returns
+    "free-gateway" so the UI can badge it.
     """
-    start = CASCADE_ORDER.index(model_key) if model_key in CASCADE_ORDER else 0
     last_err: Exception | None = None
 
-    for i, candidate in enumerate(CASCADE_ORDER[start:]):
+    # â”€â”€ NVIDIA Nemotron 3 Super 120B (reasoning model) â€” direct, no Gemini â”€â”€â”€
+    if model_key in ("nvidia-nemotron", "deepseek-v4"):
         try:
-            cfg = MODEL_CONFIGS[candidate]
-            result = await asyncio.to_thread(
-                _call_with_key_rotation, prompt, cfg["model_id"], keys
-            )
-            return result, candidate
+            result = await asyncio.to_thread(_call_nemotron_json, prompt)
+            return result, "nvidia-nemotron"
         except Exception as e:
-            err_lower = str(e).lower()
-            is_quota = any(tok in err_lower for tok in ("429", "quota", "rate_limit", "resource_exhausted"))
-            print(f"⚠️  Cascade: {cfg['model_id']} failed ({type(e).__name__}) quota={is_quota}")
-            last_err = e
-            # Brief pause between tiers when rate-limited — lets the 1-min window reset a bit.
-            if is_quota and i < len(CASCADE_ORDER) - 1:
-                await asyncio.sleep(12)
+            print(f"âš ï¸  Nemotron failed ({type(e).__name__}); falling back to NVIDIA NIM")
+            try:
+                result = await asyncio.to_thread(_call_nvidia_json, prompt)
+                return result, "nvidia-llama"
+            except Exception as e2:
+                raise RuntimeError(f"Nemotron and NVIDIA NIM both failed: {e2}") from e2
 
-    raise last_err or RuntimeError("All Gemini models in the cascade failed.")
+    # â”€â”€ Direct-to-gateway paths (skip Gemini entirely) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    if model_key == "nvidia-llama":
+        # Try NVIDIA NIM first; if it fails, fall back to OpenRouter free models
+        # (still a non-Gemini path, honouring the user's "free model" choice).
+        try:
+            result = await asyncio.to_thread(_call_nvidia_json, prompt)
+            return result, "nvidia-llama"
+        except Exception as e:
+            print(f"âš ï¸  NVIDIA NIM failed ({type(e).__name__}); falling back to OpenRouter")
+            try:
+                result = await asyncio.to_thread(_call_openrouter_json, prompt)
+                return result, "free-gateway"
+            except Exception as e2:
+                raise RuntimeError(f"NVIDIA NIM and OpenRouter both failed: {e2}") from e2
+
+    if model_key == "free-gateway":
+        # Try OpenRouter free models first; if all fail, try NVIDIA NIM.
+        try:
+            result = await asyncio.to_thread(_call_openrouter_json, prompt)
+            return result, "free-gateway"
+        except Exception as e:
+            print(f"âš ï¸  OpenRouter failed ({type(e).__name__}); falling back to NVIDIA NIM")
+            try:
+                result = await asyncio.to_thread(_call_nvidia_json, prompt)
+                return result, "nvidia-llama"
+            except Exception as e2:
+                raise RuntimeError(f"InsForge gateway and NVIDIA NIM both failed: {e2}") from e2
+
+    # â”€â”€ Gemini cascade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    start = CASCADE_ORDER.index(model_key) if model_key in CASCADE_ORDER else 0
+
+    if keys:
+        for i, candidate in enumerate(CASCADE_ORDER[start:]):
+            try:
+                cfg = MODEL_CONFIGS[candidate]
+                result = await asyncio.to_thread(
+                    _call_with_key_rotation, prompt, cfg["model_id"], keys
+                )
+                return result, candidate
+            except Exception as e:
+                err_lower = str(e).lower()
+                is_quota = any(tok in err_lower for tok in ("429", "quota", "rate_limit", "resource_exhausted"))
+                print(f"âš ï¸  Cascade: {cfg['model_id']} failed ({type(e).__name__}) quota={is_quota}")
+                last_err = e
+                if is_quota and i < len(CASCADE_ORDER) - 1:
+                    await asyncio.sleep(12)
+
+    # Free fallback: NVIDIA NIM -> InsForge/OpenRouter (works with no Gemini keys).
+    try:
+        result = await asyncio.to_thread(_call_gateway_json, prompt)
+        return result, "free-gateway"
+    except Exception as e:
+        last_err = e or last_err
+
+    raise last_err or RuntimeError("All models (Gemini cascade + InsForge gateway) failed.")
 
 
 # ---------------------------------------------------------------------------
-# MongoDB grounding via the real MCP protocol
+# InsForge grounding via the real MCP protocol
 # ---------------------------------------------------------------------------
 
 def _direct_tool_fallback(name: str, arguments: dict) -> dict:
-    """Call the underlying MongoDB tool directly if the MCP layer is unavailable
+    """Call the underlying InsForge tool directly if the MCP layer is unavailable
     (e.g. the `mcp` package isn't installed). The agent must never lose grounding
     over a transport hiccup."""
     industry = arguments.get("industry", "technology")
@@ -342,7 +609,7 @@ async def call_mcp_tool(name: str, arguments: dict) -> dict:
                 # npx not found (e.g. Vercel Python runtime) - fall through
                 pass
     except Exception as exc:
-        print(f"⚠️  Official MCP server attempt failed: {exc}")
+        print(f"âš ï¸  Official MCP server attempt failed: {exc}")
 
     try:
         from mcp.shared.memory import create_connected_server_and_client_session
@@ -361,13 +628,13 @@ async def call_mcp_tool(name: str, arguments: dict) -> dict:
                         except (json.JSONDecodeError, ValueError):
                             continue
     except Exception as exc:
-        print(f"⚠️  In-memory MCP tool '{name}' failed, using direct fallback: {exc}")
+        print(f"âš ï¸  In-memory MCP tool '{name}' failed, using direct fallback: {exc}")
 
     return _direct_tool_fallback(name, arguments)
 
 
 # ---------------------------------------------------------------------------
-# Tamper-evident audit chain (additive — must never break the pipeline)
+# Tamper-evident audit chain (additive â€” must never break the pipeline)
 # ---------------------------------------------------------------------------
 
 def _record_step_audit(plan_id, audit_steps, prev_hash, step_number, step_name, data) -> str:
@@ -385,7 +652,7 @@ def _record_step_audit(plan_id, audit_steps, prev_hash, step_number, step_name, 
         update_plan(plan_id, f"audit_hashes.step_{step_number}", h)
         return h
     except Exception as exc:
-        print(f"⚠️  audit hashing failed at step {step_number}: {exc}")
+        print(f"âš ï¸  audit hashing failed at step {step_number}: {exc}")
         return prev_hash
 
 
@@ -423,17 +690,17 @@ DEFAULT_MODEL_ID = MODEL_CONFIGS[DEFAULT_MODEL_KEY]["model_id"]
 # the very same MongoDB data through the MCP protocol (see call_mcp_tool).
 
 def adk_search_similar_plans(industry: str) -> dict:
-    """Search completed business plans in MongoDB by industry (MCP-backed)."""
+    """Search completed business plans in InsForge by industry (MCP-backed)."""
     return mcp_search_similar_plans(industry)
 
 
 def adk_get_industry_market_data(industry: str) -> dict:
-    """Look up curated industry market data from MongoDB (MCP-backed)."""
+    """Look up curated industry market data from InsForge (MCP-backed)."""
     return search_market_data(industry)
 
 
 def adk_get_market_benchmarks(industry: str) -> dict:
-    """Aggregate financial benchmarks from stored plans in MongoDB (MCP-backed)."""
+    """Aggregate financial benchmarks from stored plans in InsForge (MCP-backed)."""
     return mcp_get_market_benchmarks(industry)
 
 
@@ -463,7 +730,7 @@ def _make_llm_agent(name: str, description: str, instruction: str, tools=None):
             tools=tools or [],
         )
     except Exception as exc:  # pragma: no cover
-        print(f"⚠️  ADK LlmAgent '{name}' construction failed: {exc}")
+        print(f"âš ï¸  ADK LlmAgent '{name}' construction failed: {exc}")
         return None
 
 
@@ -557,13 +824,13 @@ class MarketAgent(BaseSpecialist):
     specialist = "Market Intelligence Analyst"
     adk_name = "market_intelligence_analyst"
     plan_field = "market_research"
-    description = "Researches the market by querying MongoDB via the MCP server."
+    description = "Researches the market by querying InsForge Postgres via the MCP server."
     instruction = (
         "You are the Market Intelligence Analyst at PitchCraft. You ground every "
-        "claim in real data retrieved from MongoDB through the Model Context "
-        "Protocol: curated industry data and similar validated plans. Size the "
-        "market, quantify growth, expose competitor weaknesses and find the gap. "
-        "Cite the MongoDB data where it informs you. Reply with valid JSON only."
+        "claim in real data retrieved from InsForge Postgres through the Model "
+        "Context Protocol: curated industry data and similar validated plans. Size "
+        "the market, quantify growth, expose competitor weaknesses and find the gap. "
+        "Cite the InsForge data where it informs you. Reply with valid JSON only."
     )
     tool_names = ["mongodb_mcp:get_industry_market_data", "mongodb_mcp:search_similar_plans"]
 
@@ -573,12 +840,12 @@ class MarketAgent(BaseSpecialist):
     async def build_prompt(self, ctx: dict) -> str:
         idea = ctx["idea"]
         industry = (ctx.get("validation") or {}).get("target_market", "") or "technology"
-        # Explicit MongoDB MCP tool calls — the heart of the MongoDB track.
+        # Explicit InsForge MCP tool calls â€” the heart of the InsForge integration.
         market = await call_mcp_tool("get_industry_market_data", {"industry": industry})
         similar = await call_mcp_tool("search_similar_plans", {"industry": industry})
         ctx["_market_mcp"] = {"industry": industry, "industry_data": market, "similar": similar}
         return f"""For startup: "{idea}"
-Industry context from MongoDB (via MCP): {json.dumps(market)}
+Industry context from InsForge (via MCP): {json.dumps(market)}
 Similar validated plans from our database (via MCP): {json.dumps(similar)}
 
 Use the MCP data to ground your research in real patterns.
@@ -592,13 +859,13 @@ Return ONLY valid JSON:
 }}"""
 
     def post_process(self, result: dict, ctx: dict) -> dict:
-        # Attach a deterministic record of the MongoDB grounding so judges (and
-        # the UI) can see the agent actually queried MongoDB to reason.
+        # Attach a deterministic record of the InsForge grounding so judges (and
+        # the UI) can see the agent actually queried InsForge to reason.
         mcp = ctx.get("_market_mcp", {})
         similar = mcp.get("similar") or {}
         industry_data = mcp.get("industry_data") or {}
         if isinstance(result, dict):
-            result["mongodb_sources"] = {
+            result["insforge_sources"] = {
                 "industry_queried": mcp.get("industry"),
                 "similar_plans_found": int(similar.get("count", 0) or 0),
                 "industry_data_used": bool(industry_data),
@@ -634,7 +901,7 @@ class PersonaAgent(BaseSpecialist):
             if direction else ""
         )
         return f"""For startup: "{idea}"{direction_note}
-Create 3 detailed customer personas. Return ONLY valid JSON — never omit any field:
+Create 3 detailed customer personas. Return ONLY valid JSON â€” never omit any field:
 {{
   "personas": [
     {{
@@ -670,7 +937,7 @@ class PlanAgent(BaseSpecialist):
     async def build_prompt(self, ctx: dict) -> str:
         idea = ctx["idea"]
         return f"""Write a comprehensive business plan for: "{idea}"
-Return ONLY valid JSON — every field is REQUIRED, never leave any field empty or null:
+Return ONLY valid JSON â€” every field is REQUIRED, never leave any field empty or null:
 {{
   "problem": "string (2-3 sentences describing the core problem)",
   "solution": "string (2-3 sentences describing your solution)",
@@ -688,11 +955,11 @@ class FinanceAgent(BaseSpecialist):
     specialist = "Financial Modeller"
     adk_name = "financial_modeller"
     plan_field = "financials"
-    description = "Projects 3-year financials, grounded in MongoDB benchmarks."
+    description = "Projects 3-year financials, grounded in InsForge benchmarks."
     instruction = (
         "You are the Financial Modeller at PitchCraft. Build a realistic 3-year "
         "financial projection. Anchor your numbers to the benchmark averages "
-        "retrieved from MongoDB via MCP so they stay credible. Reply with valid "
+        "retrieved from InsForge via MCP so they stay credible. Reply with valid "
         "JSON only."
     )
     tool_names = ["mongodb_mcp:get_market_benchmarks", "gemini_reasoning"]
@@ -708,7 +975,7 @@ class FinanceAgent(BaseSpecialist):
         ctx["_finance_benchmarks"] = {"industry": industry, "benchmarks": benchmarks}
         return f"""Create 3-year financial projection for: "{idea}"
 Revenue model: {business_plan.get('revenue_model', 'SaaS')}
-Benchmarks from our MongoDB (via MCP): {json.dumps(benchmarks)}
+Benchmarks from our InsForge DB (via MCP): {json.dumps(benchmarks)}
 Use the benchmark averages to keep your numbers realistic.
 Return ONLY valid JSON:
 {{
@@ -722,12 +989,12 @@ Return ONLY valid JSON:
 }}"""
 
     def post_process(self, result: dict, ctx: dict) -> dict:
-        # Deterministic record of the MongoDB grounding, mirroring MarketAgent,
+        # Deterministic record of the InsForge grounding, mirroring MarketAgent,
         # so the UI can show that the financials were benchmark-anchored.
         fb = ctx.get("_finance_benchmarks") or {}
         bm = fb.get("benchmarks") or {}
         if isinstance(result, dict):
-            result["mongodb_benchmarks"] = {
+            result["insforge_benchmarks"] = {
                 "industry_queried": fb.get("industry"),
                 "plans_analyzed": bm.get("plans_analyzed", 0),
                 "avg_break_even_month": bm.get("avg_break_even_month"),
@@ -772,14 +1039,14 @@ LLM_SPECIALISTS: list[type[BaseSpecialist]] = [
     ValidationAgent, MarketAgent, PersonaAgent, PlanAgent, FinanceAgent, RiskAgent,
 ]
 
-# The Chief of Staff (step 7) does no LLM call — it compiles, persists and seals.
+# The Chief of Staff (step 7) does no LLM call â€” it compiles, persists and seals.
 EXPORT_AGENT_MANIFEST = {
     "id": 7,
     "name": "Chief of Staff",
     "adk_agent": "chief_of_staff",
-    "role": "Compiles every specialist's output, persists the plan to MongoDB and "
-            "seals a SHA-256 tamper-evident audit chain.",
-    "tools": ["mongodb_persist", "sha256_audit_chain", "share_token"],
+    "role": "Compiles every specialist's output, persists the plan to InsForge "
+            "Postgres and seals a SHA-256 tamper-evident audit chain.",
+    "tools": ["insforge_persist", "sha256_audit_chain", "share_token"],
     "persists_to": "share_token / audit_chain_hash",
     "adk_llm_agent": False,
 }
@@ -812,7 +1079,7 @@ class PitchCraftOrchestra:
                     sub_agents=sub_agents,
                 )
         except Exception as exc:  # pragma: no cover
-            print(f"⚠️  ADK SequentialAgent construction failed: {exc}")
+            print(f"âš ï¸  ADK SequentialAgent construction failed: {exc}")
             return None
 
     def manifest(self) -> dict:
@@ -830,15 +1097,16 @@ class PitchCraftOrchestra:
                          "a resilient multi-key 4-tier cascade with forced-JSON + Arize tracing",
             "model_cascade": [MODEL_CONFIGS[k]["model_id"] for k in CASCADE_ORDER],
             "agents": agents,
-            "mongodb_integration": {
-                "collections_used": ["business_plans", "market_data", "audit_chains", "approval_requests"],
+            "insforge_integration": {
+                "tables_used": ["business_plans", "market_data", "audit_chains", "approval_requests"],
                 "operations": [
-                    "find / regex match for similar plans",
-                    "$group-style aggregation for benchmarks",
-                    "insertOne for plan persistence",
+                    "PostgREST filter/ilike for similar plans",
+                    "client-side aggregation for benchmarks",
+                    "REST insert for plan persistence",
                     "SHA-256 audit chain in audit_chains",
                 ],
-                "mcp_server": "PitchCraft MongoDB MCP (Model Context Protocol)",
+                "realtime": "Postgres trigger â†’ realtime.publish('plan:<id>', 'step_update')",
+                "mcp_server": "PitchCraft InsForge MCP (Model Context Protocol)",
                 "mcp_endpoint": "/api/mcp/tools",
             },
             "observability": {
@@ -849,9 +1117,14 @@ class PitchCraftOrchestra:
         }
 
     async def run(self, idea: str, plan_id: str, model_key: str = DEFAULT_MODEL_KEY):
-        """Yield one SSE-ready dict per completed step — identical event shape to
+        """Yield one SSE-ready dict per completed step â€” identical event shape to
         the original pipeline, plus additive `agent` / `specialist` metadata."""
-        keys = _load_api_keys()
+        try:
+            keys = _load_api_keys()
+        except RuntimeError:
+            # No Gemini keys configured â€” fall back entirely to the free
+            # InsForge Model Gateway (OpenRouter) inside _generate.
+            keys = []
         update_plan(plan_id, "status", "generating")
         update_plan(plan_id, "model", MODEL_CONFIGS.get(model_key, {}).get("display", model_key))
 
@@ -895,7 +1168,7 @@ class PitchCraftOrchestra:
             "step": "approval_gate",
             "status": "waiting",
             "approval_id": approval_id,
-            "message": "Review market research — approve to continue",
+            "message": "Review market research â€” approve to continue",
             "data": market_research,
         }
 
@@ -925,9 +1198,9 @@ class PitchCraftOrchestra:
         if not decision or decision.get("status") != "approved":
             reason = (decision or {}).get("status") or "timeout"
             message = (
-                "Plan rejected by reviewer — generation stopped."
+                "Plan rejected by reviewer â€” generation stopped."
                 if reason == "rejected"
-                else f"Approval timed out after {int(timeout_s)}s — plan abandoned."
+                else f"Approval timed out after {int(timeout_s)}s â€” plan abandoned."
             )
             update_plan(plan_id, "status", "abandoned")
             update_plan(plan_id, "approval_status", reason)
@@ -955,7 +1228,7 @@ class PitchCraftOrchestra:
             if ctx.get("_failed"):
                 return
 
-        # ---- Step 7 — Chief of Staff: persist + seal audit chain ----------- #
+        # ---- Step 7 â€” Chief of Staff: persist + seal audit chain ----------- #
         try:
             share_token = secrets.token_urlsafe(6)
             update_plan(plan_id, "share_token", share_token)
@@ -974,7 +1247,7 @@ class PitchCraftOrchestra:
                     audit_chain_hash = chain[-1]["hash"]
                     update_plan(plan_id, "audit_chain_hash", audit_chain_hash)
             except Exception as exc:
-                print(f"⚠️  audit chain build/save failed: {exc}")
+                print(f"âš ï¸  audit chain build/save failed: {exc}")
 
             yield {
                 "step": 7,
@@ -1052,7 +1325,8 @@ def get_agent_manifest() -> dict:
 
 
 async def run_pitchcraft_agent(idea: str, plan_id: str, model_key: str = DEFAULT_MODEL_KEY):
-    """Public entry point — delegates to the multi-agent orchestrator.
+    """Public entry point â€” delegates to the multi-agent orchestrator.
     Yields one SSE-ready dict per completed step."""
     async for event in get_orchestra().run(idea, plan_id, model_key):
         yield event
+

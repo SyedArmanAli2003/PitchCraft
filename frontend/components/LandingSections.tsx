@@ -1,57 +1,203 @@
 "use client"
 import { useRouter } from "next/navigation"
+import { LogoMark } from "@/components/GradientLogo"
+
+function IdeaIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="idea-grad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+          <stop stopColor="hsl(258,85%,64%)" />
+          <stop offset="1" stopColor="hsl(280,80%,72%)" />
+        </linearGradient>
+      </defs>
+      {/* Lightbulb shape */}
+      <path d="M12 2a7 7 0 0 1 4.9 11.95c-.65.65-1.1 1.45-1.25 2.3H8.35c-.15-.85-.6-1.65-1.25-2.3A7 7 0 0 1 12 2Z" stroke="url(#idea-grad)" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M9 20h6M10 22h4" stroke="url(#idea-grad)" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M12 6v3M10.2 7.8l2.12 2.12" stroke="url(#idea-grad)" strokeWidth="1.2" strokeLinecap="round" opacity="0.6" />
+    </svg>
+  )
+}
+
+function TeamIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="team-grad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+          <stop stopColor="hsl(195,90%,60%)" />
+          <stop offset="1" stopColor="hsl(258,85%,64%)" />
+        </linearGradient>
+      </defs>
+      {/* Central node */}
+      <circle cx="12" cy="12" r="2.2" fill="url(#team-grad)" />
+      {/* Outer agent nodes */}
+      <circle cx="12" cy="4" r="1.7" stroke="url(#team-grad)" strokeWidth="1.3" />
+      <circle cx="19.5" cy="8" r="1.7" stroke="url(#team-grad)" strokeWidth="1.3" />
+      <circle cx="19.5" cy="16" r="1.7" stroke="url(#team-grad)" strokeWidth="1.3" />
+      <circle cx="12" cy="20" r="1.7" stroke="url(#team-grad)" strokeWidth="1.3" />
+      <circle cx="4.5" cy="16" r="1.7" stroke="url(#team-grad)" strokeWidth="1.3" />
+      <circle cx="4.5" cy="8" r="1.7" stroke="url(#team-grad)" strokeWidth="1.3" />
+      {/* Connecting lines */}
+      <line x1="12" y1="5.7" x2="12" y2="9.8" stroke="url(#team-grad)" strokeWidth="1" opacity="0.5" />
+      <line x1="18.1" y1="8.8" x2="14.1" y2="10.9" stroke="url(#team-grad)" strokeWidth="1" opacity="0.5" />
+      <line x1="18.1" y1="15.2" x2="14.1" y2="13.1" stroke="url(#team-grad)" strokeWidth="1" opacity="0.5" />
+      <line x1="12" y1="18.3" x2="12" y2="14.2" stroke="url(#team-grad)" strokeWidth="1" opacity="0.5" />
+      <line x1="5.9" y1="15.2" x2="9.9" y2="13.1" stroke="url(#team-grad)" strokeWidth="1" opacity="0.5" />
+      <line x1="5.9" y1="8.8" x2="9.9" y2="10.9" stroke="url(#team-grad)" strokeWidth="1" opacity="0.5" />
+    </svg>
+  )
+}
+
+function PlanIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="plan-grad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+          <stop stopColor="hsl(142,71%,48%)" />
+          <stop offset="1" stopColor="hsl(195,90%,55%)" />
+        </linearGradient>
+      </defs>
+      {/* Document outline */}
+      <rect x="4" y="2" width="13" height="17" rx="2" stroke="url(#plan-grad)" strokeWidth="1.5" />
+      <path d="M14 2v5h3" stroke="url(#plan-grad)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      {/* Chart bars inside document */}
+      <rect x="7" y="13" width="2" height="3" rx="0.5" fill="url(#plan-grad)" opacity="0.75" />
+      <rect x="10.5" y="11" width="2" height="5" rx="0.5" fill="url(#plan-grad)" opacity="0.9" />
+      {/* Tick mark / checkmark */}
+      <path d="M7 9l1.5 1.5L12 7" stroke="url(#plan-grad)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
 
 const HOW_IT_WORKS = [
   {
     num: "01",
-    icon: "✍️",
+    icon: <IdeaIcon />,
     title: "Describe your idea",
     body: "One sentence is enough. What you're building, who it's for, and what problem it solves. That's it.",
   },
   {
     num: "02",
-    icon: "⚡",
+    icon: <TeamIcon />,
     title: "Seven specialists collaborate",
     body: "A Strategy Analyst, Market Researcher, Customer Insights Specialist, Business Architect, Financial Modeller, Risk Officer, and Chief of Staff — working in sequence, handing off like a real team.",
   },
   {
     num: "03",
-    icon: "🚀",
+    icon: <PlanIcon />,
     title: "Receive your full business plan",
     body: "Viability score, market sizing, personas, full strategy, 3-year financials, SWOT analysis. Cryptographically audited. Ready to share.",
   },
 ]
 
 const AGENTS = [
-  { num: 1, name: "Strategy Analyst",         role: "Validates idea viability, scores 1–10",     badge: "Gemini 3",         accent: "rgba(234,179,8,0.12)" },
-  { num: 2, name: "Market Intelligence",       role: "Market size, competitors, growth gaps",       badge: "MongoDB + Gemini", accent: "rgba(34,197,94,0.10)" },
-  { num: 3, name: "Customer Insights",         role: "3 detailed customer personas",               badge: "Gemini 3",         accent: "rgba(234,179,8,0.12)" },
-  { num: 4, name: "Business Architect",        role: "Full plan + GTM strategy",                   badge: "Gemini 3",         accent: "rgba(234,179,8,0.12)" },
-  { num: 5, name: "Financial Modeller",        role: "3-year projections + break-even month",      badge: "MongoDB + Gemini", accent: "rgba(34,197,94,0.10)" },
-  { num: 6, name: "Risk & Compliance",         role: "Risk matrix + full SWOT analysis",           badge: "Gemini 3",         accent: "rgba(234,179,8,0.12)" },
-  { num: 7, name: "Chief of Staff",            role: "Compiles, seals & saves to MongoDB Atlas",   badge: "MongoDB Atlas",    accent: "rgba(234,179,8,0.10)" },
+  { num: 1, name: "Strategy Analyst", role: "Validates idea viability, scores 1–10", badge: "Gemini 3", accent: "rgba(234,179,8,0.12)" },
+  { num: 2, name: "Market Intelligence", role: "Market size, competitors, growth gaps", badge: "InsForge + Gemini", accent: "rgba(16,185,129,0.10)" },
+  { num: 3, name: "Customer Insights", role: "3 detailed customer personas", badge: "Gemini 3", accent: "rgba(234,179,8,0.12)" },
+  { num: 4, name: "Business Architect", role: "Full plan + GTM strategy", badge: "Gemini 3", accent: "rgba(234,179,8,0.12)" },
+  { num: 5, name: "Financial Modeller", role: "3-year projections + break-even month", badge: "InsForge + Gemini", accent: "rgba(16,185,129,0.10)" },
+  { num: 6, name: "Risk & Compliance", role: "Risk matrix + full SWOT analysis", badge: "Gemini 3", accent: "rgba(234,179,8,0.12)" },
+  { num: 7, name: "Chief of Staff", role: "Compiles, seals & saves to InsForge", badge: "InsForge", accent: "rgba(16,185,129,0.10)" },
 ]
 
+// ─── Feature card icons (gradient SVGs, synced with the violet UI) ───────────
+function FeatureIcon({ id, children }: { id: string; children: React.ReactNode }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <defs>
+        <linearGradient id={id} x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+          <stop stopColor="hsl(258,85%,66%)" />
+          <stop offset="1" stopColor="hsl(280,82%,74%)" />
+        </linearGradient>
+      </defs>
+      {children}
+    </svg>
+  )
+}
+
+function ReviewIcon() {
+  return (
+    <FeatureIcon id="ft-review">
+      {/* pause-and-review: shield with pause bars */}
+      <path d="M12 2.5l7 2.5v5c0 4.5-3 8-7 9.5-4-1.5-7-5-7-9.5V5l7-2.5Z" stroke="url(#ft-review)" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M10.3 9v4.2M13.7 9v4.2" stroke="url(#ft-review)" strokeWidth="1.5" strokeLinecap="round" />
+    </FeatureIcon>
+  )
+}
+function DatabaseIcon() {
+  return (
+    <FeatureIcon id="ft-db">
+      <ellipse cx="12" cy="5.5" rx="7" ry="2.8" stroke="url(#ft-db)" strokeWidth="1.5" />
+      <path d="M5 5.5v6c0 1.55 3.13 2.8 7 2.8s7-1.25 7-2.8v-6" stroke="url(#ft-db)" strokeWidth="1.5" />
+      <path d="M5 11.5v6c0 1.55 3.13 2.8 7 2.8s7-1.25 7-2.8v-6" stroke="url(#ft-db)" strokeWidth="1.5" />
+    </FeatureIcon>
+  )
+}
+function BoltIcon() {
+  return (
+    <FeatureIcon id="ft-bolt">
+      <path d="M13 2L4.5 13.2c-.4.5 0 1.3.7 1.3H11l-1 8.5 8.5-11.2c.4-.5 0-1.3-.7-1.3H12l1-8.5Z" stroke="url(#ft-bolt)" strokeWidth="1.5" strokeLinejoin="round" fill="rgba(124,58,237,0.12)" />
+    </FeatureIcon>
+  )
+}
+function ChainIcon() {
+  return (
+    <FeatureIcon id="ft-chain">
+      <path d="M9.5 14.5l5-5" stroke="url(#ft-chain)" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M8 12L6 14a3.2 3.2 0 0 0 4.5 4.5l2-2" stroke="url(#ft-chain)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M16 12l2-2a3.2 3.2 0 0 0-4.5-4.5l-2 2" stroke="url(#ft-chain)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </FeatureIcon>
+  )
+}
+function TraceIcon() {
+  return (
+    <FeatureIcon id="ft-trace">
+      <circle cx="11" cy="11" r="6.5" stroke="url(#ft-trace)" strokeWidth="1.5" />
+      <path d="M16 16l4 4" stroke="url(#ft-trace)" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M8 11.5l2 2 3.5-4" stroke="url(#ft-trace)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </FeatureIcon>
+  )
+}
+function CascadeIcon() {
+  return (
+    <FeatureIcon id="ft-cascade">
+      <path d="M12 3l8 4-8 4-8-4 8-4Z" stroke="url(#ft-cascade)" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M4 12l8 4 8-4" stroke="url(#ft-cascade)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 16.5l8 4 8-4" stroke="url(#ft-cascade)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.6" />
+    </FeatureIcon>
+  )
+}
+function ShareIcon() {
+  return (
+    <FeatureIcon id="ft-share">
+      <circle cx="6" cy="12" r="2.4" stroke="url(#ft-share)" strokeWidth="1.5" />
+      <circle cx="17.5" cy="6" r="2.4" stroke="url(#ft-share)" strokeWidth="1.5" />
+      <circle cx="17.5" cy="18" r="2.4" stroke="url(#ft-share)" strokeWidth="1.5" />
+      <path d="M8.1 10.9l7.3-3.8M8.1 13.1l7.3 3.8" stroke="url(#ft-share)" strokeWidth="1.5" strokeLinecap="round" />
+    </FeatureIcon>
+  )
+}
+
 const FEATURES = [
-  { icon: "⏸", title: "Human-in-the-loop review",  body: "After market research, the agent pauses. You review, steer the strategy, then approve before it continues." },
-  { icon: "🍃", title: "MongoDB grounded",           body: "Real industry data from Atlas feeds every market analysis. Plans are stored, auditable, and searchable." },
-  { icon: "🔒", title: "SHA-256 audit chain",        body: "Each generation step is hashed into a tamper-evident chain. The output is verifiable by anyone." },
-  { icon: "🔭", title: "Arize traced",               body: "Every Gemini call is traced to Arize Phoenix. Full observability — latency, tokens, model — for every plan." },
-  { icon: "⚡", title: "Multi-model cascade",        body: "Gemini 3 Flash → 3.5 Flash → 2.5 Flash → 2.5 Flash Lite. Rotates API keys on quota. Never crashes on one model's limits." },
-  { icon: "📤", title: "Share & export",             body: "Shareable URL + print-to-PDF in one click. Send your plan to investors in under 60 seconds." },
+  { icon: <ReviewIcon />,   title: "Human-in-the-loop review", body: "After market research, the agent pauses. You review, steer the strategy, then approve before it continues." },
+  { icon: <DatabaseIcon />, title: "InsForge grounded", body: "Real industry data from InsForge Postgres feeds every market analysis. Plans are stored, auditable, and searchable." },
+  { icon: <BoltIcon />,     title: "InsForge Realtime", body: "A Postgres trigger broadcasts every step over WebSockets. Open a shared plan on a second device and watch it build live — no refresh." },
+  { icon: <ChainIcon />,    title: "SHA-256 audit chain", body: "Each generation step is hashed into a tamper-evident chain. The output is verifiable by anyone." },
+  { icon: <TraceIcon />,    title: "Fully traced", body: "Every model call is traced and monitored. Full observability — latency, tokens, and logic steps — for every plan." },
+  { icon: <CascadeIcon />,  title: "Multi-model cascade", body: "Gemini 3 Flash → 3.5 Flash → 2.5 Flash, then a free InsForge Model Gateway fallback. Rotates keys on quota. Never crashes on one model's limits." },
+  { icon: <ShareIcon />,    title: "Share & export", body: "Shareable URL + a polished PDF export in one click. Send your full plan to investors in under 60 seconds." },
 ]
 
 const FOOTER_PRODUCT = [
   ["Generate Plan", "/generate"],
-  ["How It Works",  "/#how-it-works"],
-  ["API Docs",      "https://github.com/SyedArmanAli2003/PitchCraft"],
+  ["How It Works", "/#how-it-works"],
+  ["API Docs", "https://github.com/SyedArmanAli2003/PitchCraft"],
 ] as const
 
 const FOOTER_BUILT_WITH = [
-  ["MongoDB Atlas",         "https://www.mongodb.com/atlas"],
+  ["InsForge", "https://insforge.dev"],
   ["Google Cloud / Gemini", "https://cloud.google.com"],
-  ["Google ADK",            "https://cloud.google.com/vertex-ai/generative-ai/docs/agent-builder/overview"],
-  ["Arize Phoenix",         "https://phoenix.arize.com"],
+  ["Google ADK", "https://cloud.google.com/vertex-ai/generative-ai/docs/agent-builder/overview"],
 ] as const
 
 // ─── Section: How It Works ────────────────────────────────────────────────── //
@@ -88,7 +234,7 @@ export function HowItWorksSection() {
                 </span>
               )}
               <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center mb-5 text-xl"
+                className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
                 style={{ background: "rgba(124,58,237,0.12)", border: "1px solid rgba(124,58,237,0.2)" }}
               >
                 {s.icon}
@@ -128,14 +274,14 @@ export function AgentsSection() {
           <code className="text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(124,58,237,0.15)", color: "hsl(258,80%,78%)" }}>
             LlmAgent
           </code>{" "}
-          with a name, role, and declared MongoDB tools. They hand off in a sequential pipeline.
+          with a name, role, and declared InsForge tools. They hand off in a sequential pipeline.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {AGENTS.map(agent => (
             <div
               key={agent.num}
-              className="rounded-2xl p-5 transition-all duration-200 hover:scale-[1.02]"
+              className="rounded-2xl p-5 transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-[2px]"
               style={{ background: "hsl(240,15%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}
             >
               <div className="flex items-center gap-3 mb-3">
@@ -183,7 +329,7 @@ const EXAMPLES = [
     industry: "EdTech",
     score: 8,
     year3: "$5M Year 3",
-    blurb: "Offline-first vernacular AI tutor at ₹99/month — grounded in MongoDB EdTech benchmarks.",
+    blurb: "Offline-first vernacular AI tutor at ₹99/month — grounded in InsForge EdTech benchmarks.",
     accent: "rgba(234,179,8,0.4)",
   },
   {
@@ -230,7 +376,7 @@ export function ExamplesSection() {
           {EXAMPLES.map(ex => (
             <div
               key={ex.idea}
-              className="rounded-2xl p-6 flex flex-col transition-all duration-200 hover:scale-[1.02]"
+              className="rounded-2xl p-6 flex flex-col transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-[2px]"
               style={{ background: "hsl(240,15%,8%)", border: "1px solid rgba(255,255,255,0.06)", borderTop: `2px solid ${ex.accent}` }}
             >
               <div className="flex items-center gap-2 mb-3 flex-wrap">
@@ -249,10 +395,8 @@ export function ExamplesSection() {
                 <span className="text-xs font-medium" style={{ color: "hsl(258,80%,78%)" }}>{ex.year3}</span>
                 <button
                   onClick={() => router.push(`/generate?idea=${encodeURIComponent(ex.fullIdea)}`)}
-                  className="text-xs font-semibold cursor-pointer transition-colors bg-transparent border-0 p-0"
+                  className="text-xs font-semibold cursor-pointer transition-colors bg-transparent border-0 p-0 hover:text-white"
                   style={{ color: "rgba(255,255,255,0.55)" }}
-                  onMouseEnter={e => (e.currentTarget.style.color = "white")}
-                  onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.55)")}
                 >
                   Generate this plan →
                 </button>
@@ -292,8 +436,16 @@ export function FeaturesSection() {
               className="rounded-2xl p-6 transition-all duration-200 hover:border-opacity-50"
               style={{ background: "hsl(240,15%,8%)", border: "1px solid rgba(255,255,255,0.06)" }}
             >
-              <p className="text-2xl mb-4">{f.icon}</p>
-              <p className="text-white font-semibold mb-2">{f.title}</p>
+              <div className="mb-4 flex items-center gap-3">
+                <span
+                  className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: "rgba(124,58,237,0.12)", border: "1px solid rgba(124,58,237,0.2)" }}
+                  aria-hidden="true"
+                >
+                  {f.icon}
+                </span>
+                <p className="text-white font-semibold">{f.title}</p>
+              </div>
               <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>{f.body}</p>
             </div>
           ))}
@@ -320,7 +472,7 @@ export function CtaSection() {
             color: "hsl(258,80%,78%)",
           }}
         >
-          ✦ Free during the hackathon
+          Free during the hackathon
         </div>
         <h2
           className="font-bold mb-4 leading-tight"
@@ -335,16 +487,8 @@ export function CtaSection() {
         </p>
         <button
           onClick={() => router.push("/generate")}
-          className="py-4 px-12 rounded-xl font-semibold text-white text-sm cursor-pointer transition-all duration-200"
+          className="py-4 px-12 rounded-xl font-semibold text-white text-sm cursor-pointer transition-all duration-200 hover:-translate-y-[2px] hover:shadow-[0_0_45px_rgba(124,58,237,0.45)]"
           style={{ background: "hsl(258,85%,64%)" }}
-          onMouseEnter={e => {
-            e.currentTarget.style.boxShadow = "0 0 45px rgba(124,58,237,0.45)"
-            e.currentTarget.style.transform = "translateY(-2px)"
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.boxShadow = "none"
-            e.currentTarget.style.transform = "none"
-          }}
         >
           Generate My Plan — Free →
         </button>
@@ -365,7 +509,7 @@ export function FooterSection() {
         {/* Brand */}
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <span style={{ color: "hsl(258,90%,66%)", fontSize: "1.25rem" }}>✦</span>
+            <span className="text-xl select-none" style={{ color: "hsl(258,90%,66%)" }}>✦</span>
             <span className="font-semibold text-white text-lg">
               Pitch<span style={{ color: "hsl(258,90%,66%)" }}>Craft</span>
             </span>
@@ -375,7 +519,7 @@ export function FooterSection() {
             <br />Google Cloud Rapid Agent Hackathon 2026.
           </p>
           <div className="flex flex-wrap gap-2 mt-5">
-            {["MongoDB Partner", "Arize Partner", "Google ADK"].map(badge => (
+            {["InsForge", "Google ADK"].map(badge => (
               <span
                 key={badge}
                 className="text-xs px-2.5 py-1 rounded-full"
@@ -402,10 +546,8 @@ export function FooterSection() {
                 <a
                   key={label}
                   href={href}
-                  className="block text-xs no-underline transition-colors"
+                  className="block text-xs no-underline transition-colors duration-200 hover:text-white/80"
                   style={{ color: "rgba(255,255,255,0.42)" }}
-                  onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.75)")}
-                  onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.42)")}
                 >
                   {label}
                 </a>
@@ -423,10 +565,8 @@ export function FooterSection() {
                   href={href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block text-xs no-underline transition-colors"
+                  className="block text-xs no-underline transition-colors duration-200 hover:text-white/80"
                   style={{ color: "rgba(255,255,255,0.42)" }}
-                  onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.75)")}
-                  onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.42)")}
                 >
                   {label}
                 </a>
@@ -444,8 +584,16 @@ export function FooterSection() {
           © 2026 PitchCraft · MIT License
         </p>
         <p className="text-xs" style={{ color: "rgba(255,255,255,0.18)" }}>
-          Google Cloud Rapid Agent Hackathon 2026 · MongoDB + Arize Partner Tracks
+          InsForge Launch Week 2 Hackathon 2026 · Realtime · Model Gateway · Auth · Postgres
         </p>
+        <a
+          href="/admin"
+          className="text-xs mt-2 inline-flex items-center gap-2 transition-colors duration-200 hover:text-white/35"
+          style={{ color: "rgba(255,255,255,0.1)" }}
+        >
+          <LogoMark size={14} />
+          Admin
+        </a>
       </div>
     </footer>
   )

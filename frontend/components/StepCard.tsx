@@ -4,7 +4,7 @@ import type { AgentStep } from "@/lib/types"
 
 const SPECIALISTS: Record<number, string> = {
   1: "Strategy Analyst",
-  2: "Market Research · MongoDB",
+  2: "Market Research · InsForge",
   3: "Customer Insights",
   4: "Business Architect",
   5: "Financial Modeller",
@@ -29,7 +29,10 @@ const TOOL_BADGE: Record<ToolKey, { label: string; bg: string; color: string; bo
   "gemini-2.5-pro":         { label: "G2.5 PRO",   bg: "rgba(124,58,237,0.18)", color: "hsl(258,90%,82%)",   border: "rgba(124,58,237,0.4)"  },
   "gemini-2.0-flash":       { label: "G2.0",       bg: "rgba(99,102,241,0.12)", color: "hsl(239,84%,78%)",   border: "rgba(99,102,241,0.28)" },
   "gemini-1.5-flash":       { label: "G1.5",       bg: "rgba(139,92,246,0.1)",  color: "hsl(262,60%,75%)",   border: "rgba(139,92,246,0.22)" },
-  mongodb:                  { label: "MONGODB",    bg: "rgba(34,197,94,0.12)",  color: "rgb(74,222,128)",    border: "rgba(34,197,94,0.25)"  },
+  insforge:                 { label: "INSFORGE",   bg: "rgba(16,185,129,0.14)", color: "rgb(52,211,153)",    border: "rgba(16,185,129,0.3)"  },
+  "insforge-gateway":       { label: "INSFORGE AI", bg: "rgba(99,102,241,0.14)", color: "hsl(239,84%,80%)", border: "rgba(99,102,241,0.35)" },
+  "nvidia-llama":           { label: "NVIDIA NIM",  bg: "rgba(34,197,94,0.14)", color: "rgb(74,222,128)",   border: "rgba(34,197,94,0.3)"  },
+  "nvidia-nemotron":        { label: "NVIDIA NEMOTRON", bg: "rgba(34,197,94,0.16)", color: "rgb(134,239,172)", border: "rgba(34,197,94,0.4)" },
   system:                   { label: "SYSTEM",     bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", border: "rgba(255,255,255,0.12)" },
 }
 
@@ -157,15 +160,15 @@ function StepData({ stepNumber, data }: { stepNumber: number; data: Record<strin
   if (stepNumber === 2) {
     // Live backend sends a dict ({ industry_queried, similar_plans_found, ... });
     // the demo replay uses a plain string array. Render either.
-    const raw = data.mongodb_sources
+    const raw = data.insforge_sources
     const industry = !Array.isArray(raw) && typeof raw === "object" && raw !== null
       ? (raw as Record<string, unknown>).industry_queried as string | undefined
       : undefined
     const sourcesLine = Array.isArray(raw)
       ? raw.join(" · ")
       : raw && typeof raw === "object"
-        ? `market_data.${industry ?? "industry"} · ${(raw as Record<string, unknown>).similar_plans_found ?? 0} similar plans matched in Atlas`
-        : "MongoDB MCP: 1 query executed"
+        ? `market_data.${industry ?? "industry"} · ${(raw as Record<string, unknown>).similar_plans_found ?? 0} similar plans matched in InsForge`
+        : "InsForge MCP: 1 query executed"
     return (
       <div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -173,11 +176,11 @@ function StepData({ stepNumber, data }: { stepNumber: number; data: Record<strin
           <div><p style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.7rem" }}>GROWTH RATE</p><p className="text-white font-medium">{val("growth_rate")}</p></div>
           <div className="sm:col-span-2"><p style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.7rem" }}>MARKET GAP</p><p style={{ color: "rgba(255,255,255,0.7)" }}>{val("market_gap")}</p></div>
         </div>
-        {/* MongoDB MCP visibility panel — the agent queried Atlas over the real MCP protocol */}
+        {/* InsForge MCP visibility panel — the agent queried InsForge over the real MCP protocol */}
         <div className="mt-3 rounded-xl p-3"
-          style={{ background: "rgba(34,197,94,0.05)", border: "1px solid rgba(34,197,94,0.2)" }}>
-          <p className="text-xs font-semibold mb-1.5" style={{ color: "rgb(74,222,128)" }}>
-            🍃 MongoDB MCP — market data retrieved
+          style={{ background: "rgba(16,185,129,0.05)", border: "1px solid rgba(16,185,129,0.2)" }}>
+          <p className="text-xs font-semibold mb-1.5" style={{ color: "rgb(52,211,153)" }}>
+            ◆ InsForge — market data retrieved
           </p>
           <p className="text-xs font-mono mb-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
             Tool: get_industry_market_data(&quot;{industry ?? "industry"}&quot;)
@@ -188,8 +191,8 @@ function StepData({ stepNumber, data }: { stepNumber: number; data: Record<strin
           <p className="text-xs mb-1.5" style={{ color: "rgba(255,255,255,0.55)" }}>
             Sources: {sourcesLine}
           </p>
-          <p className="text-xs flex items-center gap-1.5" style={{ color: "rgba(74,222,128,0.7)" }}>
-            <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "rgb(74,222,128)" }} />
+          <p className="text-xs flex items-center gap-1.5" style={{ color: "rgba(52,211,153,0.75)" }}>
+            <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "rgb(52,211,153)" }} />
             Connected via Model Context Protocol
           </p>
         </div>
@@ -238,12 +241,12 @@ function StepData({ stepNumber, data }: { stepNumber: number; data: Record<strin
       <p className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
         Break-even: month {data.break_even_month as number} · Funding: {val("funding_needed")}
       </p>
-      {!!data.mongodb_benchmarks && (
-        <p className="text-xs mt-2 flex items-center gap-1.5" style={{ color: "rgba(74,222,128,0.75)" }}>
-          <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: "rgb(74,222,128)" }} />
-          🍃 Anchored to MongoDB benchmarks via MCP
+      {!!data.insforge_benchmarks && (
+        <p className="text-xs mt-2 flex items-center gap-1.5" style={{ color: "rgba(52,211,153,0.8)" }}>
+          <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: "rgb(52,211,153)" }} />
+          ◆ Anchored to InsForge benchmarks via MCP
           {(() => {
-            const bm = data.mongodb_benchmarks as Record<string, unknown>
+            const bm = data.insforge_benchmarks as Record<string, unknown>
             const n = bm.plans_analyzed as number | undefined
             return n ? ` — ${n} stored plans analyzed` : ""
           })()}
@@ -270,7 +273,7 @@ function StepData({ stepNumber, data }: { stepNumber: number; data: Record<strin
     <div className="text-center py-2">
       <p className="text-2xl mb-2">🎉</p>
       <p className="text-sm font-medium text-white">Business plan complete!</p>
-      <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.45)" }}>Saved to MongoDB · Share link ready</p>
+      <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.45)" }}>Saved to InsForge · Share link ready</p>
     </div>
   )
 

@@ -1,11 +1,21 @@
 fastapi
 uvicorn
-pymongo==4.8.0
+httpx>=0.27.0
+openai>=1.40.0
 certifi>=2024.7.4
-google-genai>=1.0.0
+google-genai==1.36.0
 python-dotenv==1.0.0
-pydantic==2.8.0
+# Relaxed from ==2.8.0: the hard pin forced pip to walk every modern openai /
+# fastapi release (which need pydantic>=2.9) down to the floor on each deploy.
+# The app only uses stable pydantic 2.x APIs (BaseModel, field_validator).
+pydantic>=2.9,<3
+
+# --- MongoDB Atlas (primary database) ---
+pymongo[srv]>=4.8.0
 dnspython==2.6.1
+
+# --- HydraDB (context memory for ChatBot) ---
+hydradb-sdk>=2,<3
 
 # --- Model Context Protocol: real MongoDB MCP server (backend/mcp_server.py) ---
 mcp>=1.2.0
@@ -14,14 +24,23 @@ mcp>=1.2.0
 # The 7 specialist agents + the sequential pipeline are defined with ADK
 # (LlmAgent / SequentialAgent). Guarded import: if absent, the orchestrator
 # still runs with plain Python agent classes.
-google-adk>=1.0.0
+# PINNED: 1.15.0 resolves cleanly against the OpenTelemetry 1.37.0 stack below.
+google-adk==1.15.0
+# google-adk 1.15.0 requires google-genai<1.37.0, but google-cloud-aiplatform
+# >=1.116 (a transitive ADK dep) requires google-genai>=1.37.0 — a hard conflict.
+# Pin aiplatform to the last version compatible with google-genai 1.36.0 so the
+# whole google-genai/adk/aiplatform chain resolves deterministically.
+google-cloud-aiplatform==1.115.0
 
 # --- Arize Phoenix observability (Arize partner track) ---
 # Tracing is optional & fully guarded: if these are absent the app still runs.
-# OpenTelemetry is pinned to a window that satisfies BOTH google-adk
-# (opentelemetry-api/sdk <=1.41.1) and Phoenix, so pip resolves cleanly.
-opentelemetry-api>=1.36,<=1.41.1
-opentelemetry-sdk>=1.36,<=1.41.1
-opentelemetry-exporter-otlp>=1.27.0,<=1.41.1
+# OpenTelemetry is pinned to an EXACT, internally-consistent set (1.37.0 / 0.58b0)
+# that satisfies google-adk 1.15.0, arize-phoenix-otel, and the OpenInference
+# google-genai instrumentor simultaneously, so pip resolves deterministically.
+opentelemetry-api==1.37.0
+opentelemetry-sdk==1.37.0
+opentelemetry-exporter-otlp==1.37.0
+opentelemetry-instrumentation==0.58b0
+opentelemetry-semantic-conventions==0.58b0
 arize-phoenix-otel>=0.6.0
 openinference-instrumentation-google-genai>=0.1.0

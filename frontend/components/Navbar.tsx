@@ -153,6 +153,15 @@ function Navbar() {
                     New Plan
                   </button>
                   <button
+                    onClick={() => { setDropdownOpen(false); router.push("/history") }}
+                    className="w-full text-left px-4 py-2.5 text-sm transition-colors cursor-pointer"
+                    style={{ color: "rgba(255,255,255,0.72)", background: "transparent" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                  >
+                    My Plans
+                  </button>
+                  <button
                     onClick={logout}
                     className="w-full text-left px-4 py-2.5 text-sm transition-colors cursor-pointer"
                     style={{ color: "rgba(239,68,68,0.75)", background: "transparent" }}

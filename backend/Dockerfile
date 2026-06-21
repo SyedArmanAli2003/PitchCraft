@@ -1,5 +1,7 @@
-# PitchCraft backend — Google Cloud Run image.
-# The FastAPI app lives in index.py (NOT main.py). Cloud Run injects $PORT (8080).
+# PitchCraft backend — Cloud Run / Railway / Fly.io compatible image.
+#
+# The app entrypoint is index.py. Cloud Run and Fly.io both inject
+# $PORT at runtime (8080 by default).
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -12,12 +14,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# App source.
+# App source
 COPY . .
 
-# Cloud Run sends traffic to $PORT (default 8080). Bind there.
+# Port: Cloud Run, Fly.io, and Railway all inject $PORT (default 8080).
 ENV PORT=8080
 EXPOSE 8080
 
-# Shell form so ${PORT} is expanded at runtime.
 CMD exec uvicorn index:app --host 0.0.0.0 --port ${PORT}
