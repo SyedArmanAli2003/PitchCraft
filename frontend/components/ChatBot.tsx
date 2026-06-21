@@ -1,5 +1,7 @@
 "use client"
 import { useState, useRef, useEffect } from "react"
+import { getUserId } from "@/lib/user"
+import { API } from "@/lib/config"
 
 interface Model {
   id: string
@@ -17,24 +19,34 @@ const INITIAL_MESSAGE: Message = {
   content: "Hi! I'm PitchCraft's AI assistant. I can help you with business ideas, startup advice, or explain how PitchCraft works. What can I help you with?",
 }
 
-const FREE_MODELS: Model[] = [
-  { id: "meta/llama-3.3-70b-instruct", label: "Llama 3.3 70B (NVIDIA)", provider: "nvidia-nim" },
-  { id: "google/gemma-4-31b-it:free", label: "Gemma 4 31B", provider: "openrouter" },
-  { id: "google/gemma-4-26b-a4b-it:free", label: "Gemma 4 26B", provider: "openrouter" },
-  { id: "openai/gpt-oss-120b:free", label: "GPT-OSS 120B", provider: "openrouter" },
-  { id: "qwen/qwen3-next-80b-a3b-instruct:free", label: "Qwen3 Next 80B", provider: "openrouter" },
-  { id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B", provider: "openrouter" },
-]
-
 export default function ChatBot() {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE])
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
-  const [model, setModel] = useState(FREE_MODELS[0].id)
+  const [model, setModel] = useState<string>("")
+  const [freeModels, setFreeModels] = useState<Model[]>([])
   const [showModelPicker, setShowModelPicker] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Fetch models from backend on mount
+  useEffect(() => {
+    fetch(API.models)
+      .then(r => r.json())
+      .then(d => {
+        if (d.models?.length) {
+          const models = d.models.map((m: any) => ({
+            id: m.key,
+            label: m.display,
+            provider: m.provider || "gemini",
+          }))
+          setFreeModels(models)
+          if (!model && models.length) setModel(models[0].id)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -54,12 +66,14 @@ export default function ChatBot() {
     setLoading(true)
 
     try {
-      const res = await fetch("/api/chat", {
+      const userId = getUserId()
+      const res = await fetch(API.chat, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.content })),
           model,
+          user_id: userId,
         }),
       })
 
@@ -153,7 +167,7 @@ export default function ChatBot() {
                   <circle cx="12" cy="12" r="3" />
                   <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
                 </svg>
-                {FREE_MODELS.find(m => m.id === model)?.label?.split(" ").slice(0, 2).join(" ") || "Model"}
+                {freeModels.find(m => m.id === model)?.label?.split(" ").slice(0, 2).join(" ") || "Model"}
               </button>
               {showModelPicker && (
                 <div
@@ -167,7 +181,7 @@ export default function ChatBot() {
                   <div className="px-3 py-2 text-xs font-medium" style={{ color: "rgba(255,255,255,0.35)" }}>
                     Free Models
                   </div>
-                  {FREE_MODELS.map(m => (
+                  {freeModels.map(m => (
                     <button
                       key={m.id}
                       onClick={() => { setModel(m.id); setShowModelPicker(false) }}

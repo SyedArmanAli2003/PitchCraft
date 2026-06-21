@@ -57,6 +57,10 @@ from mongodb import (
 )
 from audit import hash_step, build_audit_chain, genesis_hash
 from observability import agent_span
+from models_config import (
+    ALL_MODELS, get_gemini_models, get_nvidia_models, get_openrouter_models,
+    get_model_by_key, get_models_for_frontend, GEMINI_CASCADE_ORDER, DEFAULT_MODEL_KEY
+)
 
 load_dotenv()
 
@@ -158,65 +162,14 @@ def _load_api_keys() -> list[str]:
     return keys
 
 
-# ---------------------------------------------------------------------------
-# Model registry â€” verified live 2026-06-10
-# ---------------------------------------------------------------------------
-# Test results (httpx, 8s timeout, free-tier keys):
-#   gemini-3.5-flash       -> OK  (confirmed working, good quality)
-#   gemini-3.1-flash-lite  -> OK  (fast, reliable, great fallback)
-#   gemini-2.5-flash-lite  -> OK  (stable fallback)
-#   gemini-3.1-pro         -> 404 (model does not exist â€” REMOVED)
-#   gemini-3-flash-preview -> NOT TESTED (may be region-limited)
-#   gemini-2.5-pro         -> 429 quota on free tier
-#   gemini-2.5-flash       -> Timeout / overloaded
-#   gemini-2.0-flash       -> 429 quota on free tier
+# Model configs and cascade order imported from models_config
+# DEFAULT_MODEL_KEY is now "nvidia-nemotron" (Nemotron 3 Super 120B)
+MODEL_CONFIGS = {m["key"]: {"display": m["display"], "tier": m["tier"], "model_id": m["key"], "badge": m["badge"], "description": m["description"], "quota_status": m["quota_status"]} for m in ALL_MODELS}
+CASCADE_ORDER = GEMINI_CASCADE_ORDER
 
-MODEL_CONFIGS: dict[str, dict] = {
-    "gemini-3.5-flash": {
-        "display": "Gemini 3.5 Flash",
-        "tier": 1,
-        "model_id": "gemini-3.5-flash",
-        "badge": "Recommended",
-        "description": "Latest & fastest â€” confirmed working",
-        "quota_status": "ok",
-    },
-    "gemini-3.1-flash-lite": {
-        "display": "Gemini 3.1 Flash Lite",
-        "tier": 2,
-        "model_id": "gemini-3.1-flash-lite",
-        "badge": "Fast",
-        "description": "Lightweight & reliable â€” separate quota pool",
-        "quota_status": "ok",
-    },
-    "gemini-2.5-flash-lite": {
-        "display": "Gemini 2.5 Flash Lite",
-        "tier": 3,
-        "model_id": "gemini-2.5-flash-lite",
-        "badge": "Stable",
-        "description": "Solid reasoning, stable free-tier quota",
-        "quota_status": "ok",
-    },
-    "gemini-2.5-flash": {
-        "display": "Gemini 2.5 Flash",
-        "tier": 4,
-        "model_id": "gemini-2.5-flash",
-        "badge": "High Capacity",
-        "description": "Deep reasoning â€” may time out under high load",
-        "quota_status": "limited",
-    },
-}
 
-# Best default: gemini-3.5-flash confirmed working
-DEFAULT_MODEL_KEY = "gemini-3.5-flash"
-
-# Strict cascade: if chosen model hits 429/503, fall through every tier.
-# Order = proven working first, then slower/quota-limited as last resort.
-CASCADE_ORDER = [
-    "gemini-3.5-flash",
-    "gemini-3.1-flash-lite",
-    "gemini-2.5-flash-lite",
-    "gemini-2.5-flash",
-]
+def get_models_list() -> list[dict]:
+    return get_models_for_frontend()
 
 
 def get_models_list() -> list[dict]:

@@ -5,6 +5,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import type { BusinessPlan, AuditChain } from "@/lib/types"
 import { API, apiBase } from "@/lib/config"
+import { getUserId } from "@/lib/user"
 import Navbar from "@/components/Navbar"
 
 const STEP_NAMES: Record<number, string> = {
@@ -1161,6 +1162,30 @@ export default function PlanDisplay({ plan: planProp }: { plan: BusinessPlan }) 
       .then(data => { setAuditChain(data); setAuditLoading(false) })
       .catch(() => setAuditLoading(false))
   }, [plan._id])
+
+  // ── HydraDB brain ingest ───────────────────────────────────────────────────────
+  // After a plan completes, ingest it into HydraDB as knowledge so the ChatBot
+  // and agents can semantically query plan context alongside chat memories.
+  // Fire-and-forget so it never blocks the UI.
+  const [brainIngested, setBrainIngested] = useState(false)
+  useEffect(() => {
+    if (brainIngested) return
+    if (!plan._id || plan._id === "no-db") return
+    if (plan.status !== "complete") return
+    const userId = getUserId()
+    if (!userId) return
+
+    fetch(API.brainIngest, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan_id: plan._id, user_id: userId }),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setBrainIngested(true)
+      })
+      .catch(() => {})
+  }, [plan._id, plan.status, brainIngested])
 
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href)

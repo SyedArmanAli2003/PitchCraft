@@ -32,6 +32,9 @@ export const API = {
   models:         `${apiBase()}/api/models`,
   manifest:       `${apiBase()}/api/agent/manifest`,
   observability:  `${apiBase()}/api/observability`,
+  chat:           `${apiBase()}/api/chat`,
+  brainIngest:    `${apiBase()}/api/brain/ingest`,
+  brainStatus:    `${apiBase()}/api/brain/status`,
   // User accounts (real MongoDB-backed auth)
   authSignup:     `${apiBase()}/api/auth/signup`,
   authLogin:      `${apiBase()}/api/auth/login`,
