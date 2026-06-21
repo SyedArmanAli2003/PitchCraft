@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import time
+import asyncio
 from collections import defaultdict
 from contextlib import asynccontextmanager
 
@@ -31,6 +32,10 @@ from mongodb import (
     init_db, save_plan, get_plan, get_plan_by_token, get_plan_count, get_plans_today,
     get_recent_plans, get_audit_chain, get_approval_request, resolve_approval, _get_db,
     get_all_plans_admin, get_user_stats,
+    create_user, get_user_by_email, get_user_by_id,
+)
+from userauth import (
+    hash_password, verify_password, make_token, verify_token, token_from_header,
 )
 from audit import verify_audit_chain, reconstruct_steps_from_plan
 from observability import init_observability, observability_status
@@ -166,6 +171,38 @@ async def observability():
     return observability_status()
 
 
+# ---------------------------------------------------------------------------
+# MongoDB + HydraDB combo: after a plan completes in MongoDB, ingest it into
+# HydraDB as semantic knowledge so the ChatBot and future agents can recall it
+# by natural-language query. Fire-and-forget so it never blocks the SSE stream.
+# ---------------------------------------------------------------------------
+_bg_tasks: set = set()
+
+
+def _schedule_brain_ingest(plan_id: str, user_id: str) -> None:
+    """Background-ingest a completed plan into HydraDB knowledge (best-effort)."""
+    async def _run():
+        try:
+            from hydradb import ingest_plan_as_knowledge, hydradb_ready
+            if not hydradb_ready():
+                return
+            plan = get_plan(plan_id)
+            if not plan:
+                return
+            plan["_id"] = str(plan["_id"])
+            await asyncio.to_thread(ingest_plan_as_knowledge, user_id, plan_id, plan)
+        except Exception as exc:
+            print(f"[brain] background ingest failed: {exc}")
+
+    try:
+        task = asyncio.create_task(_run())
+        _bg_tasks.add(task)
+        task.add_done_callback(_bg_tasks.discard)
+    except RuntimeError:
+        # No running loop (shouldn't happen inside the async stream) — skip.
+        pass
+
+
 @app.post("/api/generate")
 async def generate_plan(request: IdeaRequest, http_request: Request):
     client_ip = http_request.client.host if http_request.client else "unknown"
@@ -180,12 +217,19 @@ async def generate_plan(request: IdeaRequest, http_request: Request):
     model_key = request.model
 
     async def event_stream():
+        completed = False
         try:
             async for step in run_pitchcraft_agent(request.idea, plan_id, model_key):
+                if step.get("step") == 7 and step.get("status") == "complete":
+                    completed = True
                 yield f"data: {json.dumps(step)}\n\n"
                 yield ": heartbeat\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        finally:
+            # Completed plan → ingest into HydraDB knowledge (MongoDB+HydraDB combo).
+            if completed and request.user_id:
+                _schedule_brain_ingest(plan_id, request.user_id)
 
     return StreamingResponse(
         event_stream(),
@@ -208,6 +252,87 @@ async def get_plan_route(plan_id: str):
         raise HTTPException(status_code=404, detail="Plan not found")
     plan["_id"] = str(plan["_id"])
     return plan
+
+
+@app.get("/api/plan/{plan_id}/stream")
+async def stream_plan(plan_id: str, request: Request):
+    """Live plan updates over SSE, backed by MongoDB change streams.
+
+    A change stream scoped to this plan's _id pushes the full document on every
+    UPDATE, so any device viewing the plan sees steps appear in real time as the
+    agent writes them. Falls back to lightweight polling when the deployment
+    doesn't support change streams (e.g. a standalone mongod in local dev)."""
+    import asyncio
+    from mongodb import open_plan_change_stream
+
+    initial = get_plan(plan_id)
+    if not initial:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    async def event_stream():
+        deadline = time.time() + 600  # cap a single stream at 10 minutes
+
+        # 1) Initial snapshot so the client is immediately in sync.
+        snap = get_plan(plan_id)
+        if snap:
+            snap["_id"] = str(snap["_id"])
+            yield f"data: {json.dumps(snap, default=str)}\n\n"
+            if snap.get("status") in ("complete", "failed"):
+                yield "event: done\ndata: {}\n\n"
+                return
+
+        # 2) Prefer a real change stream; fall back to polling.
+        cs = await asyncio.to_thread(open_plan_change_stream, plan_id)
+        try:
+            if cs is not None:
+                while time.time() < deadline:
+                    if await request.is_disconnected():
+                        break
+                    change = await asyncio.to_thread(cs.try_next)
+                    if change is None:
+                        yield ": heartbeat\n\n"
+                        continue
+                    doc = change.get("fullDocument")
+                    if not doc:
+                        continue
+                    doc["_id"] = str(doc["_id"])
+                    yield f"data: {json.dumps(doc, default=str)}\n\n"
+                    if doc.get("status") in ("complete", "failed"):
+                        yield "event: done\ndata: {}\n\n"
+                        return
+            else:
+                last = None
+                while time.time() < deadline:
+                    if await request.is_disconnected():
+                        break
+                    cur = get_plan(plan_id)
+                    if cur:
+                        cur["_id"] = str(cur["_id"])
+                        payload = json.dumps(cur, default=str)
+                        if payload != last:
+                            last = payload
+                            yield f"data: {payload}\n\n"
+                            if cur.get("status") in ("complete", "failed"):
+                                yield "event: done\ndata: {}\n\n"
+                                return
+                    yield ": heartbeat\n\n"
+                    await asyncio.sleep(1.5)
+        finally:
+            if cs is not None:
+                try:
+                    cs.close()
+                except Exception:
+                    pass
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-store",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @app.get("/api/plan/{plan_id}/audit")
@@ -298,6 +423,71 @@ async def get_plans(user_id: str | None = None):
 
 
 # ---------------------------------------------------------------------------
+# User authentication â€” real email + password accounts (MongoDB-backed)
+# ---------------------------------------------------------------------------
+# Passwords are PBKDF2-hashed and sessions are HMAC-signed tokens (userauth.py).
+# The frontend stores the token and sends it as `Authorization: Bearer <token>`.
+
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    name: str | None = None
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+def _public_user(doc: dict) -> dict:
+    return {"id": doc.get("id", ""), "email": doc.get("email", ""), "name": doc.get("name", "")}
+
+
+@app.post("/api/auth/signup")
+async def auth_signup(req: SignupRequest):
+    """Create a new account, then return a session token + public user."""
+    if _get_db() is None:
+        raise HTTPException(status_code=503, detail="Accounts unavailable — database not configured")
+    email = (req.email or "").strip().lower()
+    if "@" not in email or "." not in email.split("@")[-1]:
+        raise HTTPException(status_code=400, detail="Enter a valid email address")
+    if len(req.password or "") < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    if get_user_by_email(email):
+        raise HTTPException(status_code=409, detail="An account with this email already exists")
+    user = create_user(email, req.name or "", hash_password(req.password))
+    if not user:
+        raise HTTPException(status_code=409, detail="Could not create account — email may already be in use")
+    token = make_token(user["id"], user["email"])
+    return {"token": token, "user": _public_user(user)}
+
+
+@app.post("/api/auth/login")
+async def auth_login(req: LoginRequest):
+    """Verify credentials and return a session token + public user."""
+    if _get_db() is None:
+        raise HTTPException(status_code=503, detail="Accounts unavailable — database not configured")
+    email = (req.email or "").strip().lower()
+    record = get_user_by_email(email)
+    if not record or not verify_password(req.password or "", record.get("password_hash", "")):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    token = make_token(record["id"], record["email"])
+    return {"token": token, "user": _public_user(record)}
+
+
+@app.get("/api/auth/me")
+async def auth_me(request: Request):
+    """Return the current account for a valid bearer token."""
+    payload = verify_token(token_from_header(request.headers.get("Authorization")))
+    if not payload:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    user = get_user_by_id(str(payload.get("sub", "")))
+    if not user:
+        raise HTTPException(status_code=401, detail="Account no longer exists")
+    return {"user": _public_user(user)}
+
+
+# ---------------------------------------------------------------------------
 # Admin endpoints â€” email + password login (no OAuth for admin)
 # ---------------------------------------------------------------------------
 # Admin authenticates with email + password (POST /api/admin/login), which
@@ -369,7 +559,7 @@ async def admin_stats(request: Request):
         "unique_users": len(users),
         "users": users,
         "gemini_ready": _gemini_ready(),
-        "insforge_connected": _get_db() is not None,
+        "mongodb_connected": _get_db() is not None,
     }
 
 
@@ -430,11 +620,13 @@ class SharkTankRequest(BaseModel):
     plan_context: dict
     sharks: list[dict]
     qa_context: dict | None = None  # {"shark_name": ["answer1", "answer2", ...], ...}
+    model: str | None = None        # user-selectable model (e.g. nvidia-nemotron, nvidia-llama)
 
 
 class SharkQuestionsRequest(BaseModel):
     plan_context: dict
     sharks: list[dict]
+    model: str | None = None        # user-selectable model
 
 
 @app.post("/api/shark-tank")
@@ -516,7 +708,7 @@ Return ONLY valid JSON:
 
     from agent import _generate
     try:
-        result, _ = await _generate(prompt, "nvidia-nemotron", keys)
+        result, _ = await _generate(prompt, req.model or "nvidia-nemotron", keys)
         reactions = result.get("reactions", [])
         if not reactions or len(reactions) < 3:
             raise ValueError("Incomplete reactions")
@@ -573,7 +765,7 @@ Return ONLY valid JSON:
 
     from agent import _generate
     try:
-        result, _ = await _generate(prompt, "nvidia-nemotron", keys)
+        result, _ = await _generate(prompt, req.model or "nvidia-nemotron", keys)
         questions = result.get("questions", [])
         if not questions or len(questions) < 3:
             raise ValueError("Incomplete questions")
@@ -701,11 +893,16 @@ class ChatRequest(BaseModel):
     user_id: str | None = None   # device-scoped UUID for HydraDB memory isolation
 
 
+class BrainIngestRequest(BaseModel):
+    plan_id: str
+    user_id: str
+
+
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
-    """ChatBot endpoint — calls NVIDIA NIM or OpenRouter with HydraDB memory context."""
+    """ChatBot endpoint — NVIDIA NIM / OpenRouter with MongoDB+HydraDB context (plan knowledge + chat memory)."""
     from openai import OpenAI as OpenAIClient
-    from hydradb import query_chat_context, ingest_chat_memory, hydradb_ready
+    from hydradb import ingest_chat_memory, hydradb_ready
 
     if not req.messages:
         raise HTTPException(status_code=400, detail="Messages array required")
@@ -733,16 +930,17 @@ async def chat(req: ChatRequest):
     else:
         raise HTTPException(status_code=503, detail="No chat API key configured")
 
-    # Build system prompt — prepend HydraDB memory context if user_id given
+    # Build system prompt — prepend FULL HydraDB context (plan knowledge + chat memory)
+    from hydradb import query_full_context
     system_content = CHAT_SYSTEM_PROMPT
     if req.user_id and hydradb_ready():
         last_query = next(
             (m["content"] for m in reversed(req.messages) if m.get("role") == "user"),
             "",
         )
-        memory_ctx = query_chat_context(req.user_id, last_query)
-        if memory_ctx:
-            system_content = f"{CHAT_SYSTEM_PROMPT}\n\n{memory_ctx}"
+        full_ctx = query_full_context(req.user_id, last_query)
+        if full_ctx:
+            system_content = f"{CHAT_SYSTEM_PROMPT}\n\n{full_ctx}"
 
     messages_payload = [{"role": "system", "content": system_content}] + [
         {"role": m["role"], "content": m["content"]}
@@ -770,6 +968,53 @@ async def chat(req: ChatRequest):
         return {"text": reply_text, "model": selected_model}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Brain / HydraDB Knowledge Ingest endpoint
+# ---------------------------------------------------------------------------
+# Called by the frontend PlanDisplay after plan generation completes.
+# Ingests the full business plan into HydraDB as knowledge so the ChatBot
+# and agents can semantically query plan context alongside chat memories.
+# This is the MongoDB+HydraDB combo in action:
+#   MongoDB  → structured persistence, audit chain, admin queries
+#   HydraDB  → semantic knowledge index for agentic retrieval
+
+@app.post("/api/brain/ingest")
+async def brain_ingest(req: BrainIngestRequest):
+    """Ingest a completed plan from MongoDB into HydraDB knowledge base.
+    Called after plan generation completes so the ChatBot can reference the plan."""
+    from hydradb import ingest_plan_as_knowledge, hydradb_ready
+
+    if not hydradb_ready():
+        return {"success": False, "reason": "HydraDB not configured"}
+
+    plan = get_plan(req.plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    plan["_id"] = str(plan["_id"])
+    ok = ingest_plan_as_knowledge(req.user_id, req.plan_id, plan)
+    return {
+        "success": ok,
+        "plan_id": req.plan_id,
+        "user_id": req.user_id,
+        "ingested_fields": ["validation", "market_research", "business_plan", "financials", "risks"],
+    }
+
+
+@app.get("/api/brain/status")
+async def brain_status(user_id: str | None = None):
+    """HydraDB brain status — shows whether knowledge + memory layers are ready."""
+    from hydradb import hydradb_ready, _TENANT_READY
+    return {
+        "hydradb_ready": hydradb_ready(),
+        "tenant_ready": _TENANT_READY,
+        "knowledge_type": "business_plans (semantic index)",
+        "memory_type": "chat_exchanges (inferred facts)",
+        "user_id": user_id,
+        "query_modes": ["thinking (knowledge)", "fast (memory)", "hybrid"],
+    }
 
 
 if __name__ == "__main__":

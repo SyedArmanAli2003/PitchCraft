@@ -173,6 +173,8 @@ def init_db() -> None:
             name="share_token_unique",
         )
         market_data.create_index([("industry", TEXT)], name="industry_text")
+        # Unique email per account for real auth (users collection).
+        db["users"].create_index([("email", ASCENDING)], unique=True, name="email_unique")
         print("✅ MongoDB connected and ready")
     except Exception as error:
         print(f"❌ MongoDB init error: {error}")
@@ -227,6 +229,21 @@ def get_plan(plan_id: str) -> dict | None:
     if not ObjectId.is_valid(plan_id):
         return None
     return business_plans.find_one({"_id": ObjectId(plan_id)})
+
+
+def open_plan_change_stream(plan_id: str):
+    """Open a MongoDB change stream scoped to a single plan, or None if the
+    deployment doesn't support change streams (e.g. a standalone mongod) so the
+    caller can fall back to polling. `full_document="updateLookup"` makes every
+    UPDATE event carry the complete current plan document."""
+    business_plans, _ = _collections()
+    if business_plans is None or not ObjectId.is_valid(plan_id):
+        return None
+    try:
+        pipeline = [{"$match": {"documentKey._id": ObjectId(plan_id)}}]
+        return business_plans.watch(pipeline=pipeline, full_document="updateLookup")
+    except Exception:
+        return None
 
 
 def get_plan_by_token(token: str) -> dict | None:
@@ -331,6 +348,67 @@ def get_user_stats() -> list[dict]:
         return results
     except Exception:
         return []
+
+
+# ---------------------------------------------------------------------------
+# User accounts (real email + password auth)
+# ---------------------------------------------------------------------------
+# Password hashing + token signing live in userauth.py; this module only owns
+# persistence. Documents: {_id, email, name, password_hash, created_at}.
+
+def _users_collection():
+    db = _get_db()
+    if db is None:
+        return None
+    return db["users"]
+
+
+def create_user(email: str, name: str, password_hash: str) -> dict | None:
+    """Insert a new user. Returns the public user dict, or None if the email is
+    already taken / the DB is unavailable."""
+    col = _users_collection()
+    if col is None:
+        return None
+    email = email.strip().lower()
+    doc = {
+        "email": email,
+        "name": (name or email.split("@")[0]).strip(),
+        "password_hash": password_hash,
+        "created_at": datetime.now(timezone.utc),
+    }
+    try:
+        result = col.insert_one(doc)
+    except Exception:
+        return None  # duplicate email (unique index) or write error
+    return {"id": str(result.inserted_id), "email": doc["email"], "name": doc["name"]}
+
+
+def get_user_by_email(email: str) -> dict | None:
+    """Full user document (incl. password_hash) for login verification."""
+    col = _users_collection()
+    if col is None:
+        return None
+    try:
+        doc = col.find_one({"email": email.strip().lower()})
+        if doc:
+            doc["id"] = str(doc.pop("_id"))
+        return doc
+    except Exception:
+        return None
+
+
+def get_user_by_id(user_id: str) -> dict | None:
+    """Public user dict (no password hash) for /api/auth/me."""
+    col = _users_collection()
+    if col is None or not ObjectId.is_valid(user_id):
+        return None
+    try:
+        doc = col.find_one({"_id": ObjectId(user_id)})
+        if not doc:
+            return None
+        return {"id": str(doc["_id"]), "email": doc.get("email", ""), "name": doc.get("name", "")}
+    except Exception:
+        return None
 
 
 def search_market_data(industry_keyword: str) -> dict:

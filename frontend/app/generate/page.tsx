@@ -6,6 +6,7 @@ import StepCard from "@/components/StepCard"
 import type { AgentStep } from "@/lib/types"
 import { API, type ModelKey, type ModelOption } from "@/lib/config"
 import { getUserId } from "@/lib/user"
+import { LogoMark } from "@/components/GradientLogo"
 
 // Verified live 2026-06-10 (httpx 8s timeout test):
 //   gemini-3.5-flash      -> OK   | gemini-3.1-flash-lite -> OK
@@ -45,12 +46,56 @@ const FALLBACK_MODELS: ModelOption[] = [
     quota_status: "limited",
   },
   {
-    key: "gemini-2.5-pro",
-    display: "Gemini 2.5 Pro",
+    key: "nvidia-nemotron",
+    display: "NVIDIA Nemotron 3 Super 120B",
     tier: 5,
-    badge: "Pro",
-    description: "Most powerful — requires billing account",
-    quota_status: "pro_only",
+    badge: "Reasoning",
+    description: "120B MoE reasoning model via NVIDIA — deepest analysis, fast",
+    quota_status: "ok",
+  },
+  {
+    key: "free-gateway",
+    display: "Free Gateway AI",
+    tier: 6,
+    badge: "Free Gateway",
+    description: "Gemma 4 31B via free model gateway — always free",
+    quota_status: "ok",
+  },
+  {
+    key: "nvidia-llama",
+    display: "NVIDIA Llama 3.3 70B",
+    tier: 7,
+    badge: "NVIDIA NIM Free",
+    description: "Dedicated free endpoint — no quota limits",
+    quota_status: "ok",
+  },
+]
+
+// Extra non-Gemini models that the backend supports but /api/models doesn't return
+const FREE_GATEWAY_MODELS: ModelOption[] = [
+  {
+    key: "nvidia-nemotron",
+    display: "NVIDIA Nemotron 3 Super 120B",
+    tier: 5,
+    badge: "Reasoning",
+    description: "120B MoE reasoning model via NVIDIA — deepest analysis, fast",
+    quota_status: "ok",
+  },
+  {
+    key: "free-gateway",
+    display: "Free Gateway AI",
+    tier: 6,
+    badge: "Free Gateway",
+    description: "Gemma 4 31B via free model gateway — always free",
+    quota_status: "ok",
+  },
+  {
+    key: "nvidia-llama",
+    display: "NVIDIA Llama 3.3 70B",
+    tier: 7,
+    badge: "NVIDIA NIM Free",
+    description: "Dedicated free NVIDIA endpoint — no quota issues",
+    quota_status: "ok",
   },
 ]
 
@@ -178,28 +223,62 @@ const DEMO_PLAN: { idea: string; steps: Array<{ step: number; name: string; data
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-const MODEL_ICONS: Partial<Record<ModelKey, string>> = {
-  "gemini-3.5-flash":       "◈",
-  "gemini-3.1-flash-lite":  "✧",
-  "gemini-2.5-flash-lite":  "▸",
-  "gemini-2.5-flash":       "⚡",
-  "gemini-2.5-pro":         "★",
+function GeminiIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="gemini-grad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#60A5FA" />
+          <stop offset="1" stopColor="#A855F7" />
+        </linearGradient>
+      </defs>
+      <path d="M12 2C12.5 7.5 16.5 11.5 22 12C16.5 12.5 12.5 16.5 12 22C11.5 16.5 7.5 12.5 2 12C7.5 11.5 11.5 7.5 12 2Z" fill="url(#gemini-grad)" />
+    </svg>
+  )
 }
 
-const MODEL_BADGES: Partial<Record<ModelKey, { label: string; color: string; bg: string; border: string }>> = {
-  "gemini-3.5-flash":       { label: "✅ Recommended · Working",     color: "hsl(160,90%,72%)",  bg: "rgba(34,197,94,0.12)",  border: "rgba(34,197,94,0.35)"   },
-  "gemini-3.1-flash-lite":  { label: "✅ Fast · Working",            color: "hsl(213,95%,78%)",  bg: "rgba(59,130,246,0.12)", border: "rgba(59,130,246,0.35)"  },
-  "gemini-2.5-flash-lite":  { label: "✅ Stable · Working",          color: "hsl(258,80%,78%)",  bg: "rgba(124,58,237,0.12)", border: "rgba(124,58,237,0.3)"   },
-  "gemini-2.5-flash":       { label: "⚠️ May timeout under load",   color: "hsl(38,95%,72%)",   bg: "rgba(234,179,8,0.12)",  border: "rgba(234,179,8,0.35)"  },
-  "gemini-2.5-pro":         { label: "🔒 Requires billing account",  color: "hsl(280,90%,82%)",  bg: "rgba(168,85,247,0.12)", border: "rgba(168,85,247,0.35)" },
+function NvidiaIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="nv-grad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#76B900" />
+          <stop offset="1" stopColor="#305010" />
+        </linearGradient>
+      </defs>
+      <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM14.07 17.38L10.5 13.81L12.5 11.81L17.57 16.88C16.53 18.06 14.93 18.8 13.14 18.96L14.07 17.38ZM7.44 13.13L12.5 8.07L10.5 6.07L5.43 11.14C6.47 9.96 8.07 9.21 9.86 9.05L7.44 13.13Z" fill="url(#nv-grad)" />
+    </svg>
+  )
 }
 
-const MODEL_DESC: Partial<Record<ModelKey, string>> = {
-  "gemini-3.5-flash":       "Latest Gemini Flash — confirmed working. Best quality output.",
-  "gemini-3.1-flash-lite":  "Lightweight Gemini 3.1 — fast, reliable, separate quota pool.",
-  "gemini-2.5-flash-lite":  "Gemini 2.5 Flash Lite — solid reasoning, stable free-tier quota.",
-  "gemini-2.5-flash":       "Deep reasoning model — may time out under high load. Try if others fail.",
-  "gemini-2.5-pro":         "Most powerful model — requires a Google Cloud billing account (paid tier).",
+const MODEL_ICONS: Partial<Record<string, React.ReactNode>> = {
+  "gemini-3.5-flash": <GeminiIcon />,
+  "gemini-3.1-flash-lite": <GeminiIcon />,
+  "gemini-2.5-flash-lite": <GeminiIcon />,
+  "gemini-2.5-flash": <GeminiIcon />,
+  "nvidia-nemotron": <NvidiaIcon />,
+  "free-gateway": <LogoMark size={18} />,
+  "nvidia-llama": <NvidiaIcon />,
+}
+
+const MODEL_BADGES: Partial<Record<string, { label: string; color: string; bg: string; border: string }>> = {
+  "gemini-3.5-flash": { label: "✅ Recommended · Working", color: "hsl(160,90%,72%)", bg: "rgba(34,197,94,0.12)", border: "rgba(34,197,94,0.35)" },
+  "gemini-3.1-flash-lite": { label: "✅ Fast · Working", color: "hsl(213,95%,78%)", bg: "rgba(59,130,246,0.12)", border: "rgba(59,130,246,0.35)" },
+  "gemini-2.5-flash-lite": { label: "✅ Stable · Working", color: "hsl(258,80%,78%)", bg: "rgba(124,58,237,0.12)", border: "rgba(124,58,237,0.3)" },
+  "gemini-2.5-flash": { label: "⚠️ May timeout under load", color: "hsl(38,95%,72%)", bg: "rgba(234,179,8,0.12)", border: "rgba(234,179,8,0.35)" },
+  "nvidia-nemotron": { label: "🧠 NVIDIA Nemotron · Reasoning", color: "hsl(120,60%,72%)", bg: "rgba(34,197,94,0.12)", border: "rgba(34,197,94,0.4)" },
+  "free-gateway": { label: "◆ Free Gateway · Always Free", color: "rgb(52,211,153)", bg: "rgba(16,185,129,0.12)", border: "rgba(16,185,129,0.3)" },
+  "nvidia-llama": { label: "▲ NVIDIA NIM · Free Dedicated", color: "hsl(120,60%,70%)", bg: "rgba(34,197,94,0.1)", border: "rgba(34,197,94,0.3)" },
+}
+
+const MODEL_DESC: Partial<Record<string, string>> = {
+  "gemini-3.5-flash": "Latest Gemini Flash — confirmed working. Best quality output.",
+  "gemini-3.1-flash-lite": "Lightweight Gemini 3.1 — fast, reliable, separate quota pool.",
+  "gemini-2.5-flash-lite": "Gemini 2.5 Flash Lite — solid reasoning, stable free-tier quota.",
+  "gemini-2.5-flash": "Deep reasoning model — may time out under high load. Try if others fail.",
+  "nvidia-nemotron": "NVIDIA Nemotron 3 Super 120B via NIM — premium reasoning, fast and free.",
+  "free-gateway": "Gemma 4 31B via free model gateway — always free, no quota worries.",
+  "nvidia-llama": "NVIDIA Llama 3.3 70B via NIM — dedicated free inference endpoint.",
 }
 
 function ModelSelector({
@@ -209,14 +288,14 @@ function ModelSelector({
   disabled,
 }: {
   models: ModelOption[]
-  selected: ModelKey
+  selected: string
   onChange: (k: ModelKey) => void
   disabled: boolean
 }) {
   return (
     <div className="mb-6">
       <p className="text-xs uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.35)" }}>
-        Choose Gemini Model
+        Choose AI Model
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {models.map(m => {
@@ -272,43 +351,80 @@ function ModelSelector({
   )
 }
 
+// ── Inspire Me ideas ─────────────────────────────────────────────────────────
+const INSPIRE_IDEAS = [
+  "An app that connects rural farmers directly to urban consumers, eliminating middlemen and doubling farmer income",
+  "A subscription service that delivers personalised Ayurvedic wellness boxes based on your dosha and health goals",
+  "An AI tutor that teaches coding to kids in Tier-2 Indian cities using vernacular languages and WhatsApp",
+  "A marketplace for skilled tradespeople (plumbers, electricians) with instant booking and transparent pricing",
+  "A B2B SaaS that automates GST filing and inventory reconciliation for small kirana store owners",
+  "A mental health platform offering affordable therapy sessions in regional languages via video call",
+  "An electric cargo bike delivery network for last-mile logistics in congested city centres",
+  "A peer-to-peer lending platform for women-led micro-enterprises in semi-urban areas",
+  "An AI-powered legal document assistant that drafts contracts and NDAs in plain English for startups",
+  "A food-tech startup sourcing surplus restaurant meals and selling them at 70% discount to office workers",
+  "A wearable health monitor for senior citizens that detects falls and vitals, alerting family instantly",
+  "A platform that gamifies waste segregation and rewards households with hyperlocal discount vouchers",
+  "An online marketplace connecting Indian artisans with global buyers, handling export and logistics end-to-end",
+  "A SaaS tool that generates social media content calendars and designs for small business owners using AI",
+  "A telemedicine platform for livestock farmers that connects them with veterinary specialists via video call",
+  "A carbon credit marketplace allowing Indian SMEs to offset emissions by funding rural renewable energy projects",
+]
+
 function GenerateContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [idea, setIdea]              = useState("")
-  const [submitted, setSubmitted]    = useState(false)
-  const [steps, setSteps]            = useState<AgentStep[]>([])
-  const [planId, setPlanId]          = useState<string | null>(null)
+  const [idea, setIdea] = useState("")
+  const [submitted, setSubmitted] = useState(false)
+  const [steps, setSteps] = useState<AgentStep[]>([])
+  const [planId, setPlanId] = useState<string | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
-  const [showGate, setShowGate]      = useState(false)
-  const [gateData, setGateData]      = useState<Record<string, unknown> | null>(null)
+  const [showGate, setShowGate] = useState(false)
+  const [gateData, setGateData] = useState<Record<string, unknown> | null>(null)
+  const [inspireIdx, setInspireIdx] = useState(0)
+  const [inspireFlash, setInspireFlash] = useState(false)
   // Human-in-the-loop approval gate (after Step 2 / market research)
-  const [showApproval, setShowApproval]   = useState(false)
-  const [approvalId, setApprovalId]       = useState<string | null>(null)
-  const [approvalData, setApprovalData]   = useState<Record<string, unknown> | null>(null)
-  const [approvalBusy, setApprovalBusy]   = useState(false)
-  const [redirectNote, setRedirectNote]   = useState("")
-  const [redirectMode, setRedirectMode]   = useState(false)
-  const [stoppedMsg, setStoppedMsg]       = useState<string | null>(null)
-  const [models, setModels]          = useState<ModelOption[]>(FALLBACK_MODELS)
+  const [showApproval, setShowApproval] = useState(false)
+  const [approvalId, setApprovalId] = useState<string | null>(null)
+  const [approvalData, setApprovalData] = useState<Record<string, unknown> | null>(null)
+  const [approvalBusy, setApprovalBusy] = useState(false)
+  const [redirectNote, setRedirectNote] = useState("")
+  const [redirectMode, setRedirectMode] = useState(false)
+  const [stoppedMsg, setStoppedMsg] = useState<string | null>(null)
+  const [models, setModels] = useState<ModelOption[]>(FALLBACK_MODELS)
   const [selectedModel, setSelectedModel] = useState<ModelKey>("gemini-3.5-flash")
-  const [usedModel, setUsedModel]    = useState<string>("")
-  const [modelError, setModelError]  = useState<string | null>(null)
+  const [usedModel, setUsedModel] = useState<string>("")
+  const [modelError, setModelError] = useState<string | null>(null)
   // Demo / offline fallback state
-  const [demoMode, setDemoMode]       = useState(false)
+  const [demoMode, setDemoMode] = useState(false)
   const [demoComplete, setDemoComplete] = useState(false)
   const ideaRef = useRef(idea)
   ideaRef.current = idea
-  // Monotonic run id — lets a new run (or reset) cancel an in-flight demo replay
-  // or SSE stream without races.
   const runIdRef = useRef(0)
 
-  // Fetch available models from backend
+  // Auth guard — redirect to login if not signed in (must come after all useState/useRef)
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem("pitchcraft_user")) {
+        router.replace("/login?redirect=/generate")
+      }
+    } catch { /* ignore SSR */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Fetch available models from backend and merge with free gateway models
   useEffect(() => {
     fetch(API.models)
       .then(r => r.json())
-      .then(d => { if (d.models?.length) setModels(d.models) })
-      .catch(() => { /* use fallback */ })
+      .then(d => {
+        if (d.models?.length) {
+          // Merge: backend Gemini models first, then append free gateway models
+          const backendKeys = new Set((d.models as ModelOption[]).map(m => m.key))
+          const extra = FREE_GATEWAY_MODELS.filter(m => !backendKeys.has(m.key))
+          setModels([...d.models, ...extra])
+        }
+      })
+      .catch(() => { /* use FALLBACK_MODELS */ })
   }, [])
 
   // Demo mode + idea prefill from landing-page example cards (?idea=...)
@@ -320,17 +436,17 @@ function GenerateContent() {
       setIdea(demoIdea)
       setTimeout(() => startGeneration(demoIdea, "gemini-3.5-flash"), 1500)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const freshSteps = (modelKey: ModelKey = selectedModel): AgentStep[] => [
-    { stepNumber: 1, name: "Validate Idea",         status: "waiting", tool: modelKey },
-    { stepNumber: 2, name: "Research Market",       status: "waiting", tool: "mongodb"  },
-    { stepNumber: 3, name: "Define Audience",       status: "waiting", tool: modelKey },
-    { stepNumber: 4, name: "Build Business Plan",   status: "waiting", tool: modelKey },
+    { stepNumber: 1, name: "Validate Idea", status: "waiting", tool: modelKey },
+    { stepNumber: 2, name: "Research Market", status: "waiting", tool: "mongodb" },
+    { stepNumber: 3, name: "Define Audience", status: "waiting", tool: modelKey },
+    { stepNumber: 4, name: "Build Business Plan", status: "waiting", tool: modelKey },
     { stepNumber: 5, name: "Financial Projections", status: "waiting", tool: modelKey },
-    { stepNumber: 6, name: "Risk Analysis",         status: "waiting", tool: modelKey },
-    { stepNumber: 7, name: "Save & Export",         status: "waiting", tool: "system"  },
+    { stepNumber: 6, name: "Risk Analysis", status: "waiting", tool: modelKey },
+    { stepNumber: 7, name: "Save & Export", status: "waiting", tool: "system" },
   ]
 
   const updateStep = (stepNum: number, patch: Partial<AgentStep>) => {
@@ -361,6 +477,8 @@ function GenerateContent() {
   // Replay the pre-built DEMO_PLAN step-by-step so a live demo never dies on a
   // cold backend or an exhausted Gemini quota. Same StepCards + animations as a
   // real run, just driven locally with a fixed pace and a DEMO watermark.
+  // Note: kept for future use; currently the backend cold-start fallback uses `goDemo()`.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const runDemoMode = async (myRun: number) => {
     setDemoMode(true)
     setDemoComplete(false)
@@ -372,6 +490,7 @@ function GenerateContent() {
     setShowGate(false)
     setPlanId(null)
     setUsedModel("")
+
     setSteps(
       DEMO_PLAN.steps.map(s => ({
         stepNumber: s.step,
@@ -413,17 +532,20 @@ function GenerateContent() {
     let firstEvent = false
     let switchedToDemo = false
 
-    // Only go to demo if the backend is completely unreachable (no network connection).
-    // Model errors, quota errors, etc. should show a proper error message.
+    // Backend didn't respond / unreachable — show a REAL error, never a fake replay.
     const goDemo = () => {
       if (switchedToDemo || runIdRef.current !== myRun) return
       switchedToDemo = true
       clearTimeout(watchdog)
       try { controller.abort() } catch { /* noop */ }
-      runDemoMode(myRun)
+      setIsStreaming(false)
+      setModelError(
+        "The backend didn't respond in time — it may be waking from sleep. Please try again in a moment."
+      )
+      setSteps(prev => prev.map(s => s.status === "running" ? { ...s, status: "error" } : s))
     }
 
-    // Watchdog: if no first event within DEMO_FALLBACK_MS, the backend is cold/unreachable.
+    // Watchdog: if no first event within the window, the backend is cold/unreachable.
     const watchdog = setTimeout(() => {
       if (!firstEvent) goDemo()
     }, DEMO_FALLBACK_MS)
@@ -474,10 +596,10 @@ function GenerateContent() {
           // Any event (incl. step 0 "Init") proves backend is alive — cancel watchdog.
           if (!firstEvent) { firstEvent = true; clearTimeout(watchdog) }
 
-          // Top-level backend error (e.g. all models exhausted) — show error banner.
+          // Top-level backend error — show error banner.
           if (event.error) {
             setModelError(
-              `Generation failed: ${event.error}. All Gemini models in the cascade were exhausted — please try again in a few minutes.`
+              `Generation failed: ${event.error}. Try again, or switch models below.`
             )
             setSteps(prev => prev.map(s => s.status === "running" ? { ...s, status: "error" } : s))
             streamDone = true
@@ -544,11 +666,11 @@ function GenerateContent() {
             break
           }
 
-          // Step error — show banner with retry option, don't go to demo.
+          // Step error — show banner with retry option.
           if (status === "error") {
             const errMsg = (data?.error as string) || (data?.message as string) || ""
             setModelError(
-              `Step ${step} failed${errMsg ? `: ${errMsg}` : ""}. All Gemini models were tried — please wait a minute and retry.`
+              `Step ${step} failed${errMsg ? `: ${errMsg}` : ""}. Please retry or switch models below.`
             )
             streamDone = true
             break
@@ -704,12 +826,12 @@ function GenerateContent() {
                     </p>
                   </div>
                 )}
-                {(approvalData.top_competitors as Array<{name:string;weakness:string}> | undefined)?.length ? (
+                {(approvalData.top_competitors as Array<{ name: string; weakness: string }> | undefined)?.length ? (
                   <div className="rounded-xl p-4"
                     style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
                     <p className="text-xs mb-2 uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)" }}>Top Competitors</p>
                     <div className="space-y-1">
-                      {(approvalData.top_competitors as Array<{name:string;weakness:string}>).slice(0,3).map((c,i) => (
+                      {(approvalData.top_competitors as Array<{ name: string; weakness: string }>).slice(0, 3).map((c, i) => (
                         <div key={i} className="flex items-start gap-2 text-xs">
                           <span className="font-medium text-white flex-shrink-0">{c.name}</span>
                           <span style={{ color: "rgba(255,255,255,0.4)" }}>— {c.weakness}</span>
@@ -820,9 +942,43 @@ function GenerateContent() {
               onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.08)")}
               onKeyDown={e => { if (e.key === "Enter" && e.metaKey) startGeneration(idea) }}
             />
-            <div className="flex justify-between items-center mt-2 mb-6">
+            <div className="flex justify-between items-center mt-2 mb-3">
               <p className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>{idea.length} / 200</p>
               <p className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>⌘ + Enter to submit</p>
+            </div>
+
+            {/* ── Inspire Me ── */}
+            <div className="flex flex-wrap gap-2 mb-5">
+              <button
+                type="button"
+                onClick={() => {
+                  const ideas = INSPIRE_IDEAS
+                  const next = (inspireIdx + 1) % ideas.length
+                  setInspireIdx(next)
+                  setIdea(ideas[next])
+                  setInspireFlash(true)
+                  setTimeout(() => setInspireFlash(false), 600)
+                }}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full cursor-pointer transition-all duration-300"
+                style={{
+                  background: inspireFlash ? "rgba(124,58,237,0.25)" : "rgba(124,58,237,0.1)",
+                  border: "1px solid rgba(124,58,237,0.35)",
+                  color: "hsl(258,80%,78%)",
+                  boxShadow: inspireFlash ? "0 0 16px rgba(124,58,237,0.4)" : "none",
+                }}
+              >
+                <span>✨</span> Inspire me
+              </button>
+              {idea && (
+                <button
+                  type="button"
+                  onClick={() => setIdea("")}
+                  className="text-xs px-3 py-1.5 rounded-full cursor-pointer transition-all"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.35)" }}
+                >
+                  ✕ Clear
+                </button>
+              )}
             </div>
 
             <ModelSelector
@@ -876,7 +1032,7 @@ function GenerateContent() {
                         color: selectedBadge?.color ?? "hsl(258,80%,78%)",
                         border: `1px solid ${selectedBadge?.border ?? "rgba(124,58,237,0.3)"}`,
                       }}>
-                      {MODEL_ICONS[selectedModel]} {models.find(m => m.key === selectedModel)?.display ?? selectedModel}
+                      {models.find(m => m.key === selectedModel)?.display ?? selectedModel}
                     </span>
                     {usedModel && usedModel !== selectedModel && (
                       <span className="text-xs px-2 py-0.5 rounded-full"
@@ -946,10 +1102,16 @@ function GenerateContent() {
               </div>
             )}
 
-            {/* Error banner — quota-aware */}
+            {/* Error banner — model-aware */}
             {modelError && !isStreaming && (() => {
-              const isQuota = /429|quota|exhausted|resource/i.test(modelError)
-              const isTimeout = /timeout|503|overload/i.test(modelError)
+              const isQuota = /429|quota|exhausted|resource|rate.?limit/i.test(modelError)
+              const isTimeout = /timeout|503|overload|respond in time/i.test(modelError)
+              const isGemini = selectedModel.startsWith("gemini")
+              const provider = isGemini ? "Google AI Studio"
+                : selectedModel === "nvidia-llama" ? "NVIDIA NIM"
+                  : selectedModel === "nvidia-nemotron" ? "NVIDIA (Nemotron)"
+                    : "the free model gateway"
+              const selectedDisplay = models.find(m => m.key === selectedModel)?.display ?? selectedModel
               return (
                 <div className="mt-4 rounded-2xl overflow-hidden"
                   style={{ border: `1px solid ${isQuota ? "rgba(234,179,8,0.35)" : "rgba(239,68,68,0.25)"}` }}>
@@ -959,7 +1121,7 @@ function GenerateContent() {
                     <span className="text-lg">{isQuota ? "⏱" : isTimeout ? "🔄" : "⚠️"}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold" style={{ color: isQuota ? "rgb(250,204,21)" : "rgb(252,165,165)" }}>
-                        {isQuota ? "Quota limit reached for this model" : isTimeout ? "Model is overloaded — try again or switch" : "Generation failed"}
+                        {isQuota ? `Rate limit reached on ${provider}` : isTimeout ? "Model is slow or overloaded — try again or switch" : "Generation failed"}
                       </p>
                     </div>
                   </div>
@@ -968,18 +1130,13 @@ function GenerateContent() {
                     {isQuota ? (
                       <>
                         <p className="text-xs leading-relaxed mb-3" style={{ color: "rgba(255,255,255,0.6)" }}>
-                          <strong className="text-white">What happened:</strong> The Google AI Studio free tier allows a limited number of requests per day per project.
-                          You&apos;ve hit that limit for <strong className="text-white">{models.find(m => m.key === selectedModel)?.display ?? selectedModel}</strong>.
+                          <strong className="text-white">What happened:</strong> <strong className="text-white">{selectedDisplay}</strong> hit a temporary
+                          rate limit on <strong className="text-white">{provider}</strong>. {isGemini
+                            ? "Google's free tier caps requests per day per project."
+                            : "Free model pools throttle when busy — this clears in a minute."}
                         </p>
-                        <div className="rounded-xl p-3 mb-3 space-y-1.5"
-                          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                          <p className="text-xs font-semibold text-white mb-2">📊 Free Tier Quota Details</p>
-                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>• Resets at <strong className="text-white">midnight Pacific Time</strong> every day</p>
-                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>• Limit shared across all API keys in the same Google project</p>
-                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>• To remove limits: add a billing account at <a href="https://console.cloud.google.com" target="_blank" rel="noreferrer" className="underline" style={{ color: "rgb(147,197,253)" }}>console.cloud.google.com</a></p>
-                        </div>
                         <p className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.5)" }}>
-                          💡 <strong className="text-white">Quick fix:</strong> Switch to <strong className="text-white">Gemini 3.1 Flash Lite</strong> or <strong className="text-white">Gemini 2.5 Flash Lite</strong> — both have separate quota pools and are currently working.
+                          💡 <strong className="text-white">Quick fix:</strong> retry, or switch to one of the always-free models below.
                         </p>
                       </>
                     ) : (
@@ -994,21 +1151,29 @@ function GenerateContent() {
                         style={{ background: "rgba(124,58,237,0.15)", color: "hsl(258,80%,78%)", border: "1px solid rgba(124,58,237,0.3)" }}>
                         ↺ Retry same model
                       </button>
-                      {isQuota && (
-                        <>
-                          <button
-                            onClick={() => { setSelectedModel("gemini-3.1-flash-lite"); reset(); setTimeout(() => startGeneration(idea, "gemini-3.1-flash-lite"), 50) }}
-                            className="py-2 px-4 rounded-lg text-xs font-medium cursor-pointer transition-all"
-                            style={{ background: "rgba(34,197,94,0.12)", color: "rgb(74,222,128)", border: "1px solid rgba(34,197,94,0.3)" }}>
-                            ⚡ Try Gemini 3.1 Flash Lite
-                          </button>
-                          <button
-                            onClick={() => { setSelectedModel("gemini-2.5-flash-lite"); reset(); setTimeout(() => startGeneration(idea, "gemini-2.5-flash-lite"), 50) }}
-                            className="py-2 px-4 rounded-lg text-xs font-medium cursor-pointer transition-all"
-                            style={{ background: "rgba(59,130,246,0.12)", color: "rgb(147,197,253)", border: "1px solid rgba(59,130,246,0.3)" }}>
-                            🔄 Try Gemini 2.5 Flash Lite
-                          </button>
-                        </>
+                      {selectedModel !== "nvidia-llama" && (
+                        <button
+                          onClick={() => { setSelectedModel("nvidia-llama"); reset(); setTimeout(() => startGeneration(idea, "nvidia-llama"), 50) }}
+                          className="py-2 px-4 rounded-lg text-xs font-medium cursor-pointer transition-all"
+                          style={{ background: "rgba(34,197,94,0.12)", color: "rgb(74,222,128)", border: "1px solid rgba(34,197,94,0.3)" }}>
+                          ▲ Try NVIDIA Llama (free)
+                        </button>
+                      )}
+                      {selectedModel !== "free-gateway" && (
+                        <button
+                          onClick={() => { setSelectedModel("free-gateway"); reset(); setTimeout(() => startGeneration(idea, "free-gateway"), 50) }}
+                          className="py-2 px-4 rounded-lg text-xs font-medium cursor-pointer transition-all"
+                          style={{ background: "rgba(16,185,129,0.12)", color: "rgb(52,211,153)", border: "1px solid rgba(16,185,129,0.3)" }}>
+                          ◆ Try Free Gateway AI (free)
+                        </button>
+                      )}
+                      {!isGemini && (
+                        <button
+                          onClick={() => { setSelectedModel("gemini-3.5-flash"); reset(); setTimeout(() => startGeneration(idea, "gemini-3.5-flash"), 50) }}
+                          className="py-2 px-4 rounded-lg text-xs font-medium cursor-pointer transition-all"
+                          style={{ background: "rgba(59,130,246,0.12)", color: "rgb(147,197,253)", border: "1px solid rgba(59,130,246,0.3)" }}>
+                          ◈ Try Gemini 3.5 Flash
+                        </button>
                       )}
                     </div>
                   </div>
@@ -1035,7 +1200,7 @@ function GenerateContent() {
                   Plan generated successfully!
                 </p>
                 <p className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.4)" }}>
-                  MongoDB offline — plan not saved. Start the backend with a valid MongoDB URI to enable persistence.
+                  MongoDB offline — plan not saved. Set MONGODB_URI and MONGODB_DB on the backend to enable persistence.
                 </p>
                 <button onClick={reset} className="text-xs px-4 py-2 rounded-lg cursor-pointer"
                   style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.12)" }}>

@@ -92,12 +92,12 @@ const HOW_IT_WORKS = [
 
 const AGENTS = [
   { num: 1, name: "Strategy Analyst", role: "Validates idea viability, scores 1–10", badge: "Gemini 3", accent: "rgba(234,179,8,0.12)" },
-  { num: 2, name: "Market Intelligence", role: "Market size, competitors, growth gaps", badge: "InsForge + Gemini", accent: "rgba(16,185,129,0.10)" },
+  { num: 2, name: "Market Intelligence", role: "Market size, competitors, growth gaps", badge: "MongoDB + Gemini", accent: "rgba(16,185,129,0.10)" },
   { num: 3, name: "Customer Insights", role: "3 detailed customer personas", badge: "Gemini 3", accent: "rgba(234,179,8,0.12)" },
   { num: 4, name: "Business Architect", role: "Full plan + GTM strategy", badge: "Gemini 3", accent: "rgba(234,179,8,0.12)" },
-  { num: 5, name: "Financial Modeller", role: "3-year projections + break-even month", badge: "InsForge + Gemini", accent: "rgba(16,185,129,0.10)" },
+  { num: 5, name: "Financial Modeller", role: "3-year projections + break-even month", badge: "MongoDB + Gemini", accent: "rgba(16,185,129,0.10)" },
   { num: 6, name: "Risk & Compliance", role: "Risk matrix + full SWOT analysis", badge: "Gemini 3", accent: "rgba(234,179,8,0.12)" },
-  { num: 7, name: "Chief of Staff", role: "Compiles, seals & saves to InsForge", badge: "InsForge", accent: "rgba(16,185,129,0.10)" },
+  { num: 7, name: "Chief of Staff", role: "Compiles, seals & saves to MongoDB", badge: "MongoDB", accent: "rgba(16,185,129,0.10)" },
 ]
 
 // ─── Feature card icons (gradient SVGs, synced with the violet UI) ───────────
@@ -180,11 +180,11 @@ function ShareIcon() {
 
 const FEATURES = [
   { icon: <ReviewIcon />,   title: "Human-in-the-loop review", body: "After market research, the agent pauses. You review, steer the strategy, then approve before it continues." },
-  { icon: <DatabaseIcon />, title: "InsForge grounded", body: "Real industry data from InsForge Postgres feeds every market analysis. Plans are stored, auditable, and searchable." },
-  { icon: <BoltIcon />,     title: "InsForge Realtime", body: "A Postgres trigger broadcasts every step over WebSockets. Open a shared plan on a second device and watch it build live — no refresh." },
+  { icon: <DatabaseIcon />, title: "MongoDB grounded", body: "Real industry data from MongoDB feeds every market analysis. Plans are stored, auditable, and searchable." },
+  { icon: <BoltIcon />,     title: "MongoDB Realtime", body: "A MongoDB change stream broadcasts every step over SSE. Open a shared plan on a second device and watch it build live — no refresh." },
   { icon: <ChainIcon />,    title: "SHA-256 audit chain", body: "Each generation step is hashed into a tamper-evident chain. The output is verifiable by anyone." },
   { icon: <TraceIcon />,    title: "Fully traced", body: "Every model call is traced and monitored. Full observability — latency, tokens, and logic steps — for every plan." },
-  { icon: <CascadeIcon />,  title: "Multi-model cascade", body: "Gemini 3 Flash → 3.5 Flash → 2.5 Flash, then a free InsForge Model Gateway fallback. Rotates keys on quota. Never crashes on one model's limits." },
+  { icon: <CascadeIcon />,  title: "Multi-model cascade", body: "Gemini 3 Flash → 3.5 Flash → 2.5 Flash, then a free model gateway fallback. Rotates keys on quota. Never crashes on one model's limits." },
   { icon: <ShareIcon />,    title: "Share & export", body: "Shareable URL + a polished PDF export in one click. Send your full plan to investors in under 60 seconds." },
 ]
 
@@ -195,7 +195,7 @@ const FOOTER_PRODUCT = [
 ] as const
 
 const FOOTER_BUILT_WITH = [
-  ["InsForge", "https://insforge.dev"],
+  ["MongoDB", "https://www.mongodb.com"],
   ["Google Cloud / Gemini", "https://cloud.google.com"],
   ["Google ADK", "https://cloud.google.com/vertex-ai/generative-ai/docs/agent-builder/overview"],
 ] as const
@@ -274,7 +274,7 @@ export function AgentsSection() {
           <code className="text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(124,58,237,0.15)", color: "hsl(258,80%,78%)" }}>
             LlmAgent
           </code>{" "}
-          with a name, role, and declared InsForge tools. They hand off in a sequential pipeline.
+          with a name, role, and declared MongoDB tools. They hand off in a sequential pipeline.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -329,7 +329,7 @@ const EXAMPLES = [
     industry: "EdTech",
     score: 8,
     year3: "$5M Year 3",
-    blurb: "Offline-first vernacular AI tutor at ₹99/month — grounded in InsForge EdTech benchmarks.",
+    blurb: "Offline-first vernacular AI tutor at ₹99/month — grounded in MongoDB EdTech benchmarks.",
     accent: "rgba(234,179,8,0.4)",
   },
   {
@@ -519,7 +519,7 @@ export function FooterSection() {
             <br />Google Cloud Rapid Agent Hackathon 2026.
           </p>
           <div className="flex flex-wrap gap-2 mt-5">
-            {["InsForge", "Google ADK"].map(badge => (
+            {["MongoDB", "Google ADK"].map(badge => (
               <span
                 key={badge}
                 className="text-xs px-2.5 py-1 rounded-full"
@@ -584,7 +584,7 @@ export function FooterSection() {
           © 2026 PitchCraft · MIT License
         </p>
         <p className="text-xs" style={{ color: "rgba(255,255,255,0.18)" }}>
-          InsForge Launch Week 2 Hackathon 2026 · Realtime · Model Gateway · Auth · Postgres
+          Google Cloud Rapid Agent Hackathon 2026 · Realtime · MongoDB · Auth
         </p>
         <a
           href="/admin"

@@ -17,9 +17,12 @@ function apiBase(): string {
   return ""
 }
 
+export { apiBase }
+
 export const API = {
   generate:       `${apiBase()}/api/generate`,
   plan:           (id: string)    => `${apiBase()}/api/plan/${id}`,
+  planStream:     (id: string)    => `${apiBase()}/api/plan/${id}/stream`,
   share:          (token: string) => `${apiBase()}/api/share/${token}`,
   audit:          (id: string)    => `${apiBase()}/api/plan/${id}/audit`,
   approvalDecide: (id: string)    => `${apiBase()}/api/approval/${id}/decide`,
@@ -29,6 +32,10 @@ export const API = {
   models:         `${apiBase()}/api/models`,
   manifest:       `${apiBase()}/api/agent/manifest`,
   observability:  `${apiBase()}/api/observability`,
+  // User accounts (real MongoDB-backed auth)
+  authSignup:     `${apiBase()}/api/auth/signup`,
+  authLogin:      `${apiBase()}/api/auth/login`,
+  authMe:         `${apiBase()}/api/auth/me`,
 }
 
 export type ModelKey =
@@ -36,7 +43,9 @@ export type ModelKey =
   | "gemini-3.1-flash-lite"
   | "gemini-2.5-flash-lite"
   | "gemini-2.5-flash"
-  | "gemini-2.5-pro"
+  | "nvidia-nemotron"
+  | "nvidia-llama"
+  | "free-gateway"
 
 export interface ModelOption {
   key: ModelKey

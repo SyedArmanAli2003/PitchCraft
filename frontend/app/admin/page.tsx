@@ -44,7 +44,9 @@ function StatCard({ label, value, icon, color }: { label: string; value: string 
 }
 
 export default function AdminPage() {
-  const [secret, setSecret] = useState("")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [token, setToken] = useState("")
   const [authed, setAuthed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -53,17 +55,16 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "plans" | "users">("overview")
   const [statusFilter, setStatusFilter] = useState<string>("all")
 
-  const fetchData = useCallback(async (s: string) => {
+  const fetchData = useCallback(async (tok: string) => {
     setLoading(true)
     setError("")
     try {
       const [statsRes, plansRes] = await Promise.all([
-        fetch(`${API_BASE}/api/admin/stats`, { headers: { "X-Admin-Secret": s } }),
-        fetch(`${API_BASE}/api/admin/plans?limit=100`, { headers: { "X-Admin-Secret": s } }),
+        fetch(`${API_BASE}/api/admin/stats`, { headers: { "X-Admin-Secret": tok } }),
+        fetch(`${API_BASE}/api/admin/plans?limit=100`, { headers: { "X-Admin-Secret": tok } }),
       ])
       if (!statsRes.ok) {
-        if (statsRes.status === 401) { setError("Invalid admin secret"); setAuthed(false); return }
-        if (statsRes.status === 503) { setError("Admin not configured — set ADMIN_SECRET on the backend"); return }
+        if (statsRes.status === 401) { setError("Session expired — please log in again"); setAuthed(false); return }
         throw new Error(`Stats fetch failed: ${statsRes.status}`)
       }
       const statsData: AdminStats = await statsRes.json()
@@ -78,17 +79,54 @@ export default function AdminPage() {
     }
   }, [])
 
+  // Restore an existing admin session (sessionStorage clears when tab closes).
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem("pitchcraft_admin_token")
+      if (saved) { setToken(saved); fetchData(saved) }
+    } catch { /* ignore */ }
+  }, [fetchData])
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    await fetchData(secret)
+    setLoading(true)
+    setError("")
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        setError(err.detail || (res.status === 401 ? "Invalid email or password" : `Login failed (${res.status})`))
+        setLoading(false)
+        return
+      }
+      const data = await res.json()
+      setToken(data.token)
+      try { sessionStorage.setItem("pitchcraft_admin_token", data.token) } catch { /* ignore */ }
+      await fetchData(data.token)
+    } catch {
+      setError("Couldn't reach the server — please try again.")
+      setLoading(false)
+    }
+  }
+
+  const logout = () => {
+    setAuthed(false)
+    setToken("")
+    setEmail("")
+    setPassword("")
+    try { sessionStorage.removeItem("pitchcraft_admin_token") } catch { /* ignore */ }
   }
 
   // Auto-refresh every 30s when authed
   useEffect(() => {
-    if (!authed) return
-    const interval = setInterval(() => fetchData(secret), 30_000)
+    if (!authed || !token) return
+    const interval = setInterval(() => fetchData(token), 30_000)
     return () => clearInterval(interval)
-  }, [authed, secret, fetchData])
+  }, [authed, token, fetchData])
 
   const displayedPlans = statusFilter === "all" ? plans : plans.filter(p => p.status === statusFilter)
 
@@ -109,13 +147,27 @@ export default function AdminPage() {
               className="rounded-2xl p-8"
               style={{ background: "hsl(240,15%,8%)", border: "1px solid rgba(255,255,255,0.08)" }}>
               <label className="block text-xs uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.4)" }}>
-                Admin Secret
+                Admin Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="admin@pitchcraft.app"
+                autoComplete="username"
+                className="w-full px-4 py-3 rounded-xl text-white text-sm outline-none mb-4"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+                required
+              />
+              <label className="block text-xs uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.4)" }}>
+                Password
               </label>
               <input
                 type="password"
-                value={secret}
-                onChange={e => setSecret(e.target.value)}
-                placeholder="Enter ADMIN_SECRET…"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Enter password…"
+                autoComplete="current-password"
                 className="w-full px-4 py-3 rounded-xl text-white text-sm outline-none mb-4"
                 style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
                 required
@@ -134,7 +186,9 @@ export default function AdminPage() {
               </button>
             </form>
             <p className="text-center text-xs mt-4" style={{ color: "rgba(255,255,255,0.2)" }}>
-              Set <code className="px-1 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.06)" }}>ADMIN_SECRET</code> env var on the backend to enable this
+              Admin only · email &amp; password (no social login). Configure via{" "}
+              <code className="px-1 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.06)" }}>ADMIN_EMAIL</code> /{" "}
+              <code className="px-1 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.06)" }}>ADMIN_PASSWORD</code> on the backend
             </p>
           </div>
         </div>
@@ -164,13 +218,13 @@ export default function AdminPage() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => fetchData(secret)}
+              onClick={() => fetchData(token)}
               className="text-sm px-4 py-2 rounded-xl cursor-pointer transition-all"
               style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.1)" }}>
               ↻ Refresh
             </button>
             <button
-              onClick={() => { setAuthed(false); setSecret("") }}
+              onClick={logout}
               className="text-sm px-4 py-2 rounded-xl cursor-pointer"
               style={{ background: "rgba(239,68,68,0.1)", color: "rgb(252,165,165)", border: "1px solid rgba(239,68,68,0.2)" }}>
               Logout

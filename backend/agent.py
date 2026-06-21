@@ -5,16 +5,16 @@ ARCHITECTURE
 Seven *named specialist agents* collaborate, handing off to each other like a
 real consulting firm. The six reasoning specialists are genuine
 `google.adk.agents.LlmAgent` objects (each with a name, description, system
-instruction and declared InsForge tools); the seventh â€” the Chief of Staff â€”
+instruction and declared MongoDB tools); the seventh â€” the Chief of Staff â€”
 compiles, persists and cryptographically seals the plan. They are composed into
 a single ADK `SequentialAgent` pipeline (the canonical ADK "agents that hand off
 to each other" pattern, mirroring the ADK-hackathon-winning multi-agent design).
 
   1. Strategy Analyst            â†’ validates the idea
-  2. Market Intelligence Analyst â†’ researches the market via the InsForge MCP server
+  2. Market Intelligence Analyst â†’ researches the market via the MongoDB MCP server
   3. Customer Insights Specialistâ†’ builds customer personas
   4. Business Architect          â†’ writes the full business plan
-  5. Financial Modeller          â†’ projects 3-year financials (InsForge benchmarks)
+  5. Financial Modeller          â†’ projects 3-year financials (MongoDB benchmarks)
   6. Risk & Compliance Officer   â†’ risk analysis + SWOT
   7. Chief of Staff              â†’ persists + SHA-256 audit chain
 
@@ -690,17 +690,17 @@ DEFAULT_MODEL_ID = MODEL_CONFIGS[DEFAULT_MODEL_KEY]["model_id"]
 # the very same MongoDB data through the MCP protocol (see call_mcp_tool).
 
 def adk_search_similar_plans(industry: str) -> dict:
-    """Search completed business plans in InsForge by industry (MCP-backed)."""
+    """Search completed business plans in MongoDB by industry (MCP-backed)."""
     return mcp_search_similar_plans(industry)
 
 
 def adk_get_industry_market_data(industry: str) -> dict:
-    """Look up curated industry market data from InsForge (MCP-backed)."""
+    """Look up curated industry market data from MongoDB (MCP-backed)."""
     return search_market_data(industry)
 
 
 def adk_get_market_benchmarks(industry: str) -> dict:
-    """Aggregate financial benchmarks from stored plans in InsForge (MCP-backed)."""
+    """Aggregate financial benchmarks from stored plans in MongoDB (MCP-backed)."""
     return mcp_get_market_benchmarks(industry)
 
 
@@ -824,13 +824,13 @@ class MarketAgent(BaseSpecialist):
     specialist = "Market Intelligence Analyst"
     adk_name = "market_intelligence_analyst"
     plan_field = "market_research"
-    description = "Researches the market by querying InsForge Postgres via the MCP server."
+    description = "Researches the market by querying MongoDB via the MCP server."
     instruction = (
         "You are the Market Intelligence Analyst at PitchCraft. You ground every "
-        "claim in real data retrieved from InsForge Postgres through the Model "
+        "claim in real data retrieved from MongoDB through the Model "
         "Context Protocol: curated industry data and similar validated plans. Size "
         "the market, quantify growth, expose competitor weaknesses and find the gap. "
-        "Cite the InsForge data where it informs you. Reply with valid JSON only."
+        "Cite the MongoDB data where it informs you. Reply with valid JSON only."
     )
     tool_names = ["mongodb_mcp:get_industry_market_data", "mongodb_mcp:search_similar_plans"]
 
@@ -840,12 +840,12 @@ class MarketAgent(BaseSpecialist):
     async def build_prompt(self, ctx: dict) -> str:
         idea = ctx["idea"]
         industry = (ctx.get("validation") or {}).get("target_market", "") or "technology"
-        # Explicit InsForge MCP tool calls â€” the heart of the InsForge integration.
+        # Explicit MongoDB MCP tool calls â€” the heart of the MongoDB integration.
         market = await call_mcp_tool("get_industry_market_data", {"industry": industry})
         similar = await call_mcp_tool("search_similar_plans", {"industry": industry})
         ctx["_market_mcp"] = {"industry": industry, "industry_data": market, "similar": similar}
         return f"""For startup: "{idea}"
-Industry context from InsForge (via MCP): {json.dumps(market)}
+Industry context from MongoDB (via MCP): {json.dumps(market)}
 Similar validated plans from our database (via MCP): {json.dumps(similar)}
 
 Use the MCP data to ground your research in real patterns.
@@ -859,13 +859,13 @@ Return ONLY valid JSON:
 }}"""
 
     def post_process(self, result: dict, ctx: dict) -> dict:
-        # Attach a deterministic record of the InsForge grounding so judges (and
-        # the UI) can see the agent actually queried InsForge to reason.
+        # Attach a deterministic record of the MongoDB grounding so judges (and
+        # the UI) can see the agent actually queried MongoDB to reason.
         mcp = ctx.get("_market_mcp", {})
         similar = mcp.get("similar") or {}
         industry_data = mcp.get("industry_data") or {}
         if isinstance(result, dict):
-            result["insforge_sources"] = {
+            result["mongodb_sources"] = {
                 "industry_queried": mcp.get("industry"),
                 "similar_plans_found": int(similar.get("count", 0) or 0),
                 "industry_data_used": bool(industry_data),
@@ -955,11 +955,11 @@ class FinanceAgent(BaseSpecialist):
     specialist = "Financial Modeller"
     adk_name = "financial_modeller"
     plan_field = "financials"
-    description = "Projects 3-year financials, grounded in InsForge benchmarks."
+    description = "Projects 3-year financials, grounded in MongoDB benchmarks."
     instruction = (
         "You are the Financial Modeller at PitchCraft. Build a realistic 3-year "
         "financial projection. Anchor your numbers to the benchmark averages "
-        "retrieved from InsForge via MCP so they stay credible. Reply with valid "
+        "retrieved from MongoDB via MCP so they stay credible. Reply with valid "
         "JSON only."
     )
     tool_names = ["mongodb_mcp:get_market_benchmarks", "gemini_reasoning"]
@@ -975,7 +975,7 @@ class FinanceAgent(BaseSpecialist):
         ctx["_finance_benchmarks"] = {"industry": industry, "benchmarks": benchmarks}
         return f"""Create 3-year financial projection for: "{idea}"
 Revenue model: {business_plan.get('revenue_model', 'SaaS')}
-Benchmarks from our InsForge DB (via MCP): {json.dumps(benchmarks)}
+Benchmarks from our MongoDB (via MCP): {json.dumps(benchmarks)}
 Use the benchmark averages to keep your numbers realistic.
 Return ONLY valid JSON:
 {{
@@ -989,12 +989,12 @@ Return ONLY valid JSON:
 }}"""
 
     def post_process(self, result: dict, ctx: dict) -> dict:
-        # Deterministic record of the InsForge grounding, mirroring MarketAgent,
+        # Deterministic record of the MongoDB grounding, mirroring MarketAgent,
         # so the UI can show that the financials were benchmark-anchored.
         fb = ctx.get("_finance_benchmarks") or {}
         bm = fb.get("benchmarks") or {}
         if isinstance(result, dict):
-            result["insforge_benchmarks"] = {
+            result["mongodb_benchmarks"] = {
                 "industry_queried": fb.get("industry"),
                 "plans_analyzed": bm.get("plans_analyzed", 0),
                 "avg_break_even_month": bm.get("avg_break_even_month"),
@@ -1044,9 +1044,9 @@ EXPORT_AGENT_MANIFEST = {
     "id": 7,
     "name": "Chief of Staff",
     "adk_agent": "chief_of_staff",
-    "role": "Compiles every specialist's output, persists the plan to InsForge "
-            "Postgres and seals a SHA-256 tamper-evident audit chain.",
-    "tools": ["insforge_persist", "sha256_audit_chain", "share_token"],
+    "role": "Compiles every specialist's output, persists the plan to MongoDB "
+            "and seals a SHA-256 tamper-evident audit chain.",
+    "tools": ["mongodb_persist", "sha256_audit_chain", "share_token"],
     "persists_to": "share_token / audit_chain_hash",
     "adk_llm_agent": False,
 }
@@ -1097,16 +1097,16 @@ class PitchCraftOrchestra:
                          "a resilient multi-key 4-tier cascade with forced-JSON + Arize tracing",
             "model_cascade": [MODEL_CONFIGS[k]["model_id"] for k in CASCADE_ORDER],
             "agents": agents,
-            "insforge_integration": {
-                "tables_used": ["business_plans", "market_data", "audit_chains", "approval_requests"],
+            "mongodb_integration": {
+                "collections_used": ["business_plans", "market_data", "audit_chains", "approval_requests"],
                 "operations": [
-                    "PostgREST filter/ilike for similar plans",
-                    "client-side aggregation for benchmarks",
-                    "REST insert for plan persistence",
+                    "find/filter query for similar plans",
+                    "aggregation pipeline for benchmarks",
+                    "insert for plan persistence",
                     "SHA-256 audit chain in audit_chains",
                 ],
-                "realtime": "Postgres trigger â†’ realtime.publish('plan:<id>', 'step_update')",
-                "mcp_server": "PitchCraft InsForge MCP (Model Context Protocol)",
+                "realtime": "MongoDB change stream â†’ SSE push('plan:<id>', 'step_update')",
+                "mcp_server": "PitchCraft MongoDB MCP (Model Context Protocol)",
                 "mcp_endpoint": "/api/mcp/tools",
             },
             "observability": {

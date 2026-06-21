@@ -29,6 +29,14 @@ function generateUUID(): string {
 export function getUserId(): string | null {
   if (typeof window === "undefined") return null
   try {
+    // Prefer the authenticated account id so a logged-in user's plans &
+    // HydraDB memory follow their account across devices. Falls back to the
+    // device-scoped UUID for anonymous visitors.
+    const raw = localStorage.getItem("pitchcraft_user")
+    if (raw) {
+      const id = JSON.parse(raw)?.id
+      if (id) return id
+    }
     let id = localStorage.getItem(USER_ID_KEY)
     if (!id) {
       id = generateUUID()

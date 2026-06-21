@@ -166,3 +166,152 @@ def query_chat_context(user_id: str, query: str, max_results: int = 5) -> str:
     except Exception as exc:
         print(f"[hydradb] query_chat_context error: {exc}")
         return ""
+
+
+def ingest_plan_as_knowledge(user_id: str, plan_id: str, plan: dict) -> bool:
+    """Ingest a completed business plan into HydraDB as durable knowledge.
+
+    This is the MongoDB+HydraDB combo: MongoDB holds the full structured plan
+    (persistence, audit chain, admin queries), while HydraDB holds a semantic
+    knowledge representation so the ChatBot and future agents can retrieve
+    relevant plan context via natural language queries.
+
+    Uses type="knowledge" so chunks are indexed for semantic + keyword retrieval.
+    The knowledge is scoped to the user's sub_tenant for isolation.
+    """
+    client = _get_client()
+    if client is None:
+        return False
+    if not _TENANT_READY:
+        ensure_tenant()
+    try:
+        import uuid
+
+        validation = plan.get("validation") or {}
+        market = plan.get("market_research") or {}
+        business = plan.get("business_plan") or {}
+        financials = plan.get("financials") or {}
+        risks = plan.get("risks") or {}
+
+        # Build a rich text representation of the plan for semantic retrieval
+        plan_text = f"""Business Plan: {plan.get('idea', 'N/A')}
+
+VALIDATION:
+Summary: {validation.get('one_line_summary', 'N/A')}
+Viability Score: {validation.get('viability_score', 'N/A')}/10
+Core Problem: {validation.get('core_problem_solved', 'N/A')}
+Target Market: {validation.get('target_market', 'N/A')}
+Innovation: {validation.get('innovation_factor', 'N/A')}
+Main Concerns: {', '.join(validation.get('main_concerns', []))}
+
+MARKET RESEARCH:
+Market Size: {market.get('market_size', 'N/A')}
+Growth Rate: {market.get('growth_rate', 'N/A')}
+Market Gap: {market.get('market_gap', 'N/A')}
+Opportunity Score: {market.get('opportunity_score', 'N/A')}/10
+
+BUSINESS PLAN:
+Problem: {business.get('problem', 'N/A')}
+Solution: {business.get('solution', 'N/A')}
+USP: {business.get('unique_value_proposition', 'N/A')}
+Revenue Model: {business.get('revenue_model', 'N/A')}
+Revenue Streams: {', '.join(business.get('revenue_streams', []))}
+Go-to-Market: {business.get('go_to_market', 'N/A')}
+
+FINANCIALS:
+Year 1 Revenue: {financials.get('year1_revenue', 'N/A')}
+Year 2 Revenue: {financials.get('year2_revenue', 'N/A')}
+Year 3 Revenue: {financials.get('year3_revenue', 'N/A')}
+Startup Cost: {financials.get('startup_cost', 'N/A')}
+Monthly Burn: {financials.get('monthly_burn', 'N/A')}
+Break-even Month: {financials.get('break_even_month', 'N/A')}
+Funding Needed: {financials.get('funding_needed', 'N/A')}
+
+RISKS:
+{chr(10).join([f"- {r.get('risk', '')} (Severity: {r.get('severity', '')}): {r.get('mitigation', '')}" for r in (risks.get('risks') or [])])}
+
+SWOT:
+Strengths: {', '.join((risks.get('swot') or {}).get('strengths', []))}
+Weaknesses: {', '.join((risks.get('swot') or {}).get('weaknesses', []))}
+Opportunities: {', '.join((risks.get('swot') or {}).get('opportunities', []))}
+Threats: {', '.join((risks.get('swot') or {}).get('threats', []))}
+"""
+
+        knowledge_id = f"plan_{plan_id}"
+        client.context.ingest(
+            type="knowledge",
+            tenant_id=_tenant_id(),
+            sub_tenant_id=user_id,
+            knowledge=json.dumps([{
+                "id": knowledge_id,
+                "text": plan_text,
+                "additional_metadata": {
+                    "source": "pitchcraft_plan",
+                    "plan_id": plan_id,
+                    "idea": plan.get("idea", ""),
+                    "status": plan.get("status", "complete"),
+                },
+            }]),
+        )
+        print(f"[hydradb] Plan {plan_id} ingested as knowledge for user {user_id}")
+        return True
+    except Exception as exc:
+        print(f"[hydradb] ingest_plan_as_knowledge error: {exc}")
+        return False
+
+
+def query_full_context(user_id: str, query: str, max_results: int = 5) -> str:
+    """Combined MongoDB+HydraDB context query for the ChatBot.
+
+    Retrieves BOTH:
+    1. Knowledge chunks — semantic retrieval from ingested business plans
+    2. Memory chunks — chat history and inferred user preferences
+
+    Returns a formatted string to prepend to the LLM system prompt,
+    giving the ChatBot full awareness of the user's business context.
+    """
+    client = _get_client()
+    if client is None:
+        return ""
+    if not _TENANT_READY:
+        ensure_tenant()
+
+    sections = []
+
+    # Query knowledge (business plans)
+    try:
+        k_result = client.query(
+            tenant_id=_tenant_id(),
+            sub_tenant_id=user_id,
+            query=query,
+            type="knowledge",
+            query_by="hybrid",
+            mode="thinking",   # deep reasoning mode for plan context
+            max_results=max_results,
+        )
+        k_chunks = k_result.data.chunks
+        if k_chunks:
+            lines = [f"- {getattr(c, 'chunk_content', str(c))}" for c in k_chunks]
+            sections.append("User's Business Plan Context:\n" + "\n".join(lines))
+    except Exception as exc:
+        print(f"[hydradb] knowledge query error: {exc}")
+
+    # Query memory (chat history + inferred facts)
+    try:
+        m_result = client.query(
+            tenant_id=_tenant_id(),
+            sub_tenant_id=user_id,
+            query=query,
+            type="memory",
+            query_by="hybrid",
+            mode="fast",
+            max_results=3,
+        )
+        m_chunks = m_result.data.chunks
+        if m_chunks:
+            lines = [f"- {getattr(c, 'chunk_content', str(c))}" for c in m_chunks]
+            sections.append("Relevant Past Conversations:\n" + "\n".join(lines))
+    except Exception as exc:
+        print(f"[hydradb] memory query error: {exc}")
+
+    return "\n\n".join(sections) if sections else ""
