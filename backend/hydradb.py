@@ -50,6 +50,33 @@ def hydradb_ready() -> bool:
     return _get_client() is not None
 
 
+def _extract_chunk_text(chunk) -> str:
+    """Pull human-readable text out of a retrieved chunk. HydraDB returns each
+    chunk as a JSON envelope ({title, content:{text,markdown}, ...}); we surface
+    the title + text so the LLM gets clean context instead of a raw JSON blob.
+    Falls back to the raw string for any unexpected shape (e.g. memories)."""
+    raw = getattr(chunk, "chunk_content", None)
+    if raw is None:
+        return str(chunk)
+    if not isinstance(raw, str):
+        return str(raw)
+    try:
+        obj = json.loads(raw)
+    except Exception:
+        return raw
+    if isinstance(obj, dict):
+        content = obj.get("content")
+        if isinstance(content, dict):
+            txt = content.get("text") or content.get("markdown")
+            if txt:
+                title = obj.get("title")
+                return f"{title}: {txt}" if title else str(txt)
+        for k in ("text", "memory", "summary", "description"):
+            if obj.get(k):
+                return str(obj[k])
+    return raw
+
+
 def _tenant_id() -> str:
     return os.getenv("HYDRA_DB_TENANT_ID", "pitchcraft")
 
@@ -160,8 +187,7 @@ def query_chat_context(user_id: str, query: str, max_results: int = 5) -> str:
             return ""
         lines = []
         for c in chunks:
-            content = getattr(c, "chunk_content", None) or str(c)
-            lines.append(f"- {content}")
+            lines.append(f"- {_extract_chunk_text(c)}")
         return "Relevant past context from this user:\n" + "\n".join(lines)
     except Exception as exc:
         print(f"[hydradb] query_chat_context error: {exc}")
@@ -242,9 +268,11 @@ Threats: {', '.join((risks.get('swot') or {}).get('threats', []))}
             type="knowledge",
             tenant_id=_tenant_id(),
             sub_tenant_id=user_id,
-            knowledge=json.dumps([{
+            app_knowledge=json.dumps([{
                 "id": knowledge_id,
-                "text": plan_text,
+                "title": plan.get("idea", "Business Plan"),
+                "description": validation.get("one_line_summary", ""),
+                "content": {"text": plan_text, "markdown": plan_text},
                 "additional_metadata": {
                     "source": "pitchcraft_plan",
                     "plan_id": plan_id,
@@ -291,7 +319,7 @@ def query_full_context(user_id: str, query: str, max_results: int = 5) -> str:
         )
         k_chunks = k_result.data.chunks
         if k_chunks:
-            lines = [f"- {getattr(c, 'chunk_content', str(c))}" for c in k_chunks]
+            lines = [f"- {_extract_chunk_text(c)}" for c in k_chunks]
             sections.append("User's Business Plan Context:\n" + "\n".join(lines))
     except Exception as exc:
         print(f"[hydradb] knowledge query error: {exc}")
@@ -309,7 +337,7 @@ def query_full_context(user_id: str, query: str, max_results: int = 5) -> str:
         )
         m_chunks = m_result.data.chunks
         if m_chunks:
-            lines = [f"- {getattr(c, 'chunk_content', str(c))}" for c in m_chunks]
+            lines = [f"- {_extract_chunk_text(c)}" for c in m_chunks]
             sections.append("Relevant Past Conversations:\n" + "\n".join(lines))
     except Exception as exc:
         print(f"[hydradb] memory query error: {exc}")

@@ -936,7 +936,14 @@ class PlanAgent(BaseSpecialist):
 
     async def build_prompt(self, ctx: dict) -> str:
         idea = ctx["idea"]
-        return f"""Write a comprehensive business plan for: "{idea}"
+        direction = ctx.get("direction_override")
+        direction_note = (
+            f'\nThe reviewer redirected the strategy: "{direction}". '
+            "Reflect this new direction throughout the plan — the problem framing, "
+            "solution, unique value proposition, revenue model and go-to-market."
+            if direction else ""
+        )
+        return f"""Write a comprehensive business plan for: "{idea}"{direction_note}
 Return ONLY valid JSON â€” every field is REQUIRED, never leave any field empty or null:
 {{
   "problem": "string (2-3 sentences describing the core problem)",
